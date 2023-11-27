@@ -1,0 +1,17 @@
+<svg viewBox="0 0 7 7" version="1.1" baseProfile="full" width="100" height="100"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+
+  <style>
+    .i {
+      stroke: #00cccc;
+    }
+    .h {
+      stroke: #ff9933;
+    }
+  </style>
+
+  <path class='h' d="M 2.5 1 V 6 M 3 3.5 H 4.5 V 6" fill='none' stroke-width='1' />
+  <path class='i' d="M 2.5 1 V 2 M 2.5 3 V 6" fill='none' stroke-width='1' />
+
+</svg>
