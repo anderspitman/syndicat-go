@@ -1,12 +1,12 @@
 package main
 
 import (
-        "fmt"
+	"fmt"
 
-        "github.com/anderspitman/syndicat-go"
+	"github.com/anderspitman/syndicat-go"
 )
 
 func main() {
-        server := syndicat.NewServer()
-        fmt.Println(server)
+	server := syndicat.NewServer()
+	fmt.Println(server)
 }
