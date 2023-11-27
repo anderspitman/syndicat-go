@@ -3,7 +3,7 @@ package main
 import (
         "fmt"
 
-        "github.com/anderspitman/syndicat"
+        "github.com/anderspitman/syndicat-go"
 )
 
 func main() {
