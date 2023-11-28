@@ -29,13 +29,13 @@ func NewServer(conf ServerConfig) *Server {
 	fmt.Println(authServer)
 
 	gdConfig := &gemdrive.Config{
-		Port: 3839,
+		Dirs: []string{"files"},
 	}
 
 	tmess := treemess.NewTreeMess()
 	gdTmess := tmess.Branch()
 
-	_, err := gemdrive.NewServer(gdConfig, gdTmess)
+	gdServer, err := gemdrive.NewServer(gdConfig, gdTmess)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func NewServer(conf ServerConfig) *Server {
 	ch := make(chan treemess.Message)
 	tmess.Listen(ch)
 
-	tmess.Send("start", nil)
+	//tmess.Send("start", nil)
 
 	go func() {
 		for msg := range ch {
@@ -65,6 +65,8 @@ func NewServer(conf ServerConfig) *Server {
 		switch host {
 		case rootUri:
 			fmt.Println("root")
+			gdServer.ServeHTTP(w, r)
+			return
 		case authUri:
 			fmt.Println("auth")
 			authServer.ServeHTTP(w, r)
