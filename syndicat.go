@@ -5,7 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"html/template"
+	//"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/anderspitman/treemess-go"
+	"github.com/cbroglie/mustache"
 	"github.com/gemdrive/gemdrive-go"
 	"github.com/gorilla/feeds"
 	"github.com/lastlogin-io/obligator"
@@ -47,6 +48,9 @@ func NewServer(conf ServerConfig) *Server {
 
 	gdConfig := &gemdrive.Config{
 		Dirs: []string{fsDir},
+		DomainMap: map[string]string{
+			rootUri: fmt.Sprintf("/serve/%s", rootUri),
+		},
 	}
 
 	tmess := treemess.NewTreeMess()
@@ -67,12 +71,6 @@ func NewServer(conf ServerConfig) *Server {
 			fmt.Println(msg)
 		}
 	}()
-
-	tmpl, err := template.ParseFS(fs, "templates/*")
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
 
 	nextId := 0
 	mut := &sync.Mutex{}
@@ -102,15 +100,28 @@ func NewServer(conf ServerConfig) *Server {
 
 	http.HandleFunc("/entry", func(w http.ResponseWriter, r *http.Request) {
 
-		templateData := struct {
-		}{}
-
-		err = tmpl.ExecuteTemplate(w, "entry.html", templateData)
+		tmplBytes, err := fs.ReadFile("templates/entry.mustache")
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
 			return
 		}
+
+		templateData := struct {
+			Title string
+		}{
+			Title: "Entree Entry",
+		}
+
+		tmplHtml, err := mustache.Render(string(tmplBytes), templateData)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		w.WriteHeader(200)
+		io.WriteString(w, tmplHtml)
 	})
 
 	http.HandleFunc("/entry-submit", func(w http.ResponseWriter, r *http.Request) {
@@ -209,7 +220,10 @@ func render(rootUri, sourceDir, serveDir string) error {
 		userRootUri := domainName
 		userSourceDir := filepath.Join(sourceDir, domainName)
 		userServeDir := filepath.Join(serveDir, domainName)
-		renderUser(userRootUri, userSourceDir, userServeDir)
+		err = renderUser(userRootUri, userSourceDir, userServeDir)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -321,6 +335,27 @@ func renderUser(rootUri, sourceDir, serveDir string) error {
 	}
 
 	err = os.WriteFile(filepath.Join(serveDir, "feed.json"), []byte(feedJson), 0644)
+	if err != nil {
+		return err
+	}
+
+	indexTmplBytes, err := fs.ReadFile("templates/index.mustache")
+	if err != nil {
+		return err
+	}
+
+	templateData := struct {
+		Title string
+	}{
+		Title: rootUri,
+	}
+
+	indexHtml, err := mustache.Render(string(indexTmplBytes), templateData)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filepath.Join(serveDir, "index.html"), []byte(indexHtml), 0644)
 	if err != nil {
 		return err
 	}

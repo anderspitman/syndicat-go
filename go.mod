@@ -4,6 +4,7 @@ go 1.21.3
 
 require (
 	github.com/anderspitman/treemess-go v0.0.0-20210313015619-ba255d9f1e0f
+	github.com/cbroglie/mustache v1.4.0
 	github.com/gemdrive/gemdrive-go v0.0.0-20231127205839-b075940da417
 	github.com/gorilla/feeds v1.1.2
 	github.com/lastlogin-io/obligator v0.0.0-20231127174642-702901d024a9
