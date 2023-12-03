@@ -42,6 +42,8 @@ func NewServer(conf ServerConfig) *Server {
 	authServer := obligator.NewServer(authConfig)
 
 	fsDir := "files"
+	sourceDir := filepath.Join(fsDir, "source")
+	serveDir := filepath.Join(fsDir, "serve")
 
 	gdConfig := &gemdrive.Config{
 		Dirs: []string{fsDir},
@@ -77,12 +79,7 @@ func NewServer(conf ServerConfig) *Server {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
-		// TODO: check to make sure we're behind a proxy before
-		// trusting XFH header
-		host := r.Header.Get("X-Forwarded-Host")
-		if host == "" {
-			host = r.Host
-		}
+		host := getHost(r)
 
 		switch host {
 		case rootUri:
@@ -128,7 +125,11 @@ func NewServer(conf ServerConfig) *Server {
 		nextId++
 		mut.Unlock()
 
-		entryDir := fmt.Sprintf("%s/entries/%d/", fsDir, entryId)
+		host := getHost(r)
+
+		userDir := filepath.Join(sourceDir, host)
+
+		entryDir := fmt.Sprintf("%s/%d", userDir, entryId)
 		err = os.MkdirAll(entryDir, 0755)
 		if err != nil {
 			w.WriteHeader(500)
@@ -164,7 +165,7 @@ func NewServer(conf ServerConfig) *Server {
 			return
 		}
 
-		err = render(rootUri, fsDir, fsDir)
+		err = render(rootUri, sourceDir, serveDir)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -174,7 +175,7 @@ func NewServer(conf ServerConfig) *Server {
 		http.Redirect(w, r, "/entry", http.StatusSeeOther)
 	})
 
-	err = render(rootUri, fsDir, fsDir)
+	err = render(rootUri, sourceDir, serveDir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -186,9 +187,47 @@ func NewServer(conf ServerConfig) *Server {
 	return s
 }
 
-func render(rootUri, fsDir, renderDir string) error {
+func render(rootUri, sourceDir, serveDir string) error {
 
-	entriesDir := filepath.Join(fsDir, "entries")
+	err := os.MkdirAll(sourceDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	err = os.MkdirAll(serveDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	dirItems, err := os.ReadDir(sourceDir)
+	if err != nil {
+		return err
+	}
+
+	for _, userDirEntry := range dirItems {
+		domainName := userDirEntry.Name()
+		userRootUri := domainName
+		userSourceDir := filepath.Join(sourceDir, domainName)
+		userServeDir := filepath.Join(serveDir, domainName)
+		renderUser(userRootUri, userSourceDir, userServeDir)
+	}
+
+	return nil
+}
+
+func renderUser(rootUri, sourceDir, serveDir string) error {
+
+	err := os.MkdirAll(sourceDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	err = os.MkdirAll(serveDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	entriesDir := sourceDir
 
 	dirItems, err := os.ReadDir(entriesDir)
 	if err != nil {
@@ -214,14 +253,12 @@ func render(rootUri, fsDir, renderDir string) error {
 			return err
 		}
 
-		printJson(entry)
-
 		var htmlText bytes.Buffer
 		if err := goldmark.Convert([]byte(entry.ContentText), &htmlText); err != nil {
 			return err
 		}
 
-		entryRenderDir := filepath.Join(renderDir, entryId)
+		entryRenderDir := filepath.Join(serveDir, entryId)
 		entryHtmlPath := filepath.Join(entryRenderDir, "index.html")
 
 		err = os.MkdirAll(entryRenderDir, 0755)
@@ -278,12 +315,12 @@ func render(rootUri, fsDir, renderDir string) error {
 		return err
 	}
 
-	err = os.WriteFile(filepath.Join(fsDir, "feed.xml"), []byte(atom), 0644)
+	err = os.WriteFile(filepath.Join(serveDir, "feed.xml"), []byte(atom), 0644)
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(filepath.Join(fsDir, "feed.json"), []byte(feedJson), 0644)
+	err = os.WriteFile(filepath.Join(serveDir, "feed.json"), []byte(feedJson), 0644)
 	if err != nil {
 		return err
 	}
@@ -294,4 +331,15 @@ func render(rootUri, fsDir, renderDir string) error {
 func printJson(data interface{}) {
 	d, _ := json.MarshalIndent(data, "", "  ")
 	fmt.Println(string(d))
+}
+
+func getHost(r *http.Request) string {
+	// TODO: check to make sure we're behind a proxy before
+	// trusting XFH header
+	host := r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+
+	return host
 }
