@@ -3,12 +3,14 @@ module github.com/anderspitman/syndicat-go
 go 1.21.3
 
 require (
+	github.com/anderspitman/treemess-go v0.0.0-20210313015619-ba255d9f1e0f
 	github.com/gemdrive/gemdrive-go v0.0.0-20231127205839-b075940da417
+	github.com/gorilla/feeds v1.1.2
 	github.com/lastlogin-io/obligator v0.0.0-20231127174642-702901d024a9
+	github.com/yuin/goldmark v1.4.13
 )
 
 require (
-	github.com/anderspitman/treemess-go v0.0.0-20210313015619-ba255d9f1e0f // indirect
 	github.com/caddyserver/certmagic v0.15.3 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
