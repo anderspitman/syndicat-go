@@ -266,6 +266,7 @@ func render(rootUri, fsDir, renderDir string) error {
 	}
 
 	jsonFeed := (&feeds.JSON{Feed: feed}).JSONFeed()
+	jsonFeed.HomePageUrl = fmt.Sprintf("https://%s/", rootUri)
 	jsonFeed.FeedUrl = fmt.Sprintf("https://%s/feed.json", rootUri)
 	for _, item := range jsonFeed.Items {
 		item.ContentText = item.ContentHTML
