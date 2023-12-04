@@ -31,6 +31,19 @@ type Server struct{}
 //go:embed templates
 var fs embed.FS
 
+type PartialProvider struct {
+}
+
+func (p *PartialProvider) Get(tmplPath string) (string, error) {
+
+	tmplBytes, err := fs.ReadFile(tmplPath)
+	if err != nil {
+		return "", err
+	}
+
+	return string(tmplBytes), nil
+}
+
 func NewServer(conf ServerConfig) *Server {
 
 	rootUri := conf.RootUri
@@ -72,6 +85,8 @@ func NewServer(conf ServerConfig) *Server {
 		}
 	}()
 
+	partialProvider := &PartialProvider{}
+
 	nextId := 0
 	mut := &sync.Mutex{}
 
@@ -100,20 +115,13 @@ func NewServer(conf ServerConfig) *Server {
 
 	http.HandleFunc("/entry", func(w http.ResponseWriter, r *http.Request) {
 
-		tmplBytes, err := fs.ReadFile("templates/entry.mustache")
-		if err != nil {
-			w.WriteHeader(500)
-			io.WriteString(w, err.Error())
-			return
-		}
-
 		templateData := struct {
 			Title string
 		}{
 			Title: "Entree Entry",
 		}
 
-		tmplHtml, err := mustache.Render(string(tmplBytes), templateData)
+		tmplHtml, err := renderTemplate("templates/entry.html", templateData, partialProvider)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -176,7 +184,7 @@ func NewServer(conf ServerConfig) *Server {
 			return
 		}
 
-		err = render(rootUri, sourceDir, serveDir)
+		err = render(rootUri, sourceDir, serveDir, partialProvider)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -186,7 +194,7 @@ func NewServer(conf ServerConfig) *Server {
 		http.Redirect(w, r, "/entry", http.StatusSeeOther)
 	})
 
-	err = render(rootUri, sourceDir, serveDir)
+	err = render(rootUri, sourceDir, serveDir, partialProvider)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -198,7 +206,7 @@ func NewServer(conf ServerConfig) *Server {
 	return s
 }
 
-func render(rootUri, sourceDir, serveDir string) error {
+func render(rootUri, sourceDir, serveDir string, partialProvider *PartialProvider) error {
 
 	err := os.MkdirAll(sourceDir, 0755)
 	if err != nil {
@@ -220,7 +228,7 @@ func render(rootUri, sourceDir, serveDir string) error {
 		userRootUri := domainName
 		userSourceDir := filepath.Join(sourceDir, domainName)
 		userServeDir := filepath.Join(serveDir, domainName)
-		err = renderUser(userRootUri, userSourceDir, userServeDir)
+		err = renderUser(userRootUri, userSourceDir, userServeDir, partialProvider)
 		if err != nil {
 			return err
 		}
@@ -229,7 +237,7 @@ func render(rootUri, sourceDir, serveDir string) error {
 	return nil
 }
 
-func renderUser(rootUri, sourceDir, serveDir string) error {
+func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialProvider) error {
 
 	err := os.MkdirAll(sourceDir, 0755)
 	if err != nil {
@@ -339,18 +347,13 @@ func renderUser(rootUri, sourceDir, serveDir string) error {
 		return err
 	}
 
-	indexTmplBytes, err := fs.ReadFile("templates/index.mustache")
-	if err != nil {
-		return err
-	}
-
 	templateData := struct {
 		Title string
 	}{
 		Title: rootUri,
 	}
 
-	indexHtml, err := mustache.Render(string(indexTmplBytes), templateData)
+	indexHtml, err := renderTemplate("templates/index.html", templateData, partialProvider)
 	if err != nil {
 		return err
 	}
@@ -361,6 +364,21 @@ func renderUser(rootUri, sourceDir, serveDir string) error {
 	}
 
 	return nil
+}
+
+func renderTemplate(tmplPath string, templateData interface{}, partialProvider *PartialProvider) (string, error) {
+
+	tmplBytes, err := fs.ReadFile(tmplPath)
+	if err != nil {
+		return "", err
+	}
+
+	tmplText, err := mustache.RenderPartials(string(tmplBytes), partialProvider, templateData)
+	if err != nil {
+		return "", err
+	}
+
+	return tmplText, nil
 }
 
 func printJson(data interface{}) {
