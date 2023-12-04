@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 	//"html/template"
 	"io"
 	"log"
@@ -20,6 +21,7 @@ import (
 	"github.com/gorilla/feeds"
 	"github.com/lastlogin-io/obligator"
 	"github.com/yuin/goldmark"
+	"willnorris.com/go/webmention"
 )
 
 type ServerConfig struct {
@@ -303,6 +305,29 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
+		fmt.Println(entryHtml)
+
+		reader := strings.NewReader(entryHtml)
+
+		links, err := webmention.DiscoverLinksFromReader(reader, rootUri, ".content")
+		if err != nil {
+			return err
+		}
+
+		entryUri := fmt.Sprintf("https://%s/%s/", rootUri, entryId)
+
+		wmClient := webmention.New(nil)
+
+		for _, link := range links {
+			endpoint, err := wmClient.DiscoverEndpoint(link)
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(endpoint, entryUri, link)
+			wmClient.SendWebmention(endpoint, entryUri, link)
+		}
+
 		err = os.WriteFile(entryHtmlPath, []byte(entryHtml), 0644)
 		if err != nil {
 			return err
@@ -313,9 +338,9 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			Author: &feeds.Author{
 				Name: entry.Author.Name,
 			},
-			Id: fmt.Sprintf("https://%s/%s/", rootUri, entryId),
+			Id: entryUri,
 			Link: &feeds.Link{
-				Href: fmt.Sprintf("https://%s/%s/", rootUri, entryId),
+				Href: entryUri,
 			},
 			Content: entry.ContentText,
 			Updated: *entry.ModifiedDate,
