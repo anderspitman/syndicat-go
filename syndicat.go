@@ -113,7 +113,7 @@ func NewServer(conf ServerConfig) *Server {
 		}
 	})
 
-	http.HandleFunc("/entry", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/entry-editor", func(w http.ResponseWriter, r *http.Request) {
 
 		templateData := struct {
 			Title string
@@ -121,7 +121,7 @@ func NewServer(conf ServerConfig) *Server {
 			Title: "Entree Entry",
 		}
 
-		tmplHtml, err := renderTemplate("templates/entry.html", templateData, partialProvider)
+		tmplHtml, err := renderTemplate("templates/entry-editor.html", templateData, partialProvider)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -191,7 +191,7 @@ func NewServer(conf ServerConfig) *Server {
 			return
 		}
 
-		http.Redirect(w, r, "/entry", http.StatusSeeOther)
+		http.Redirect(w, r, "/entry-editor", http.StatusSeeOther)
 	})
 
 	err = render(rootUri, sourceDir, serveDir, partialProvider)
@@ -275,8 +275,8 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		var htmlText bytes.Buffer
-		if err := goldmark.Convert([]byte(entry.ContentText), &htmlText); err != nil {
+		var contentText bytes.Buffer
+		if err := goldmark.Convert([]byte(entry.ContentText), &contentText); err != nil {
 			return err
 		}
 
@@ -288,7 +288,22 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		err = os.WriteFile(entryHtmlPath, htmlText.Bytes(), 0644)
+		content := string(contentText.Bytes())
+
+		tmplData := struct {
+			Title   string
+			Content string
+		}{
+			Title:   entry.Title,
+			Content: content,
+		}
+
+		entryHtml, err := renderTemplate("templates/entry.html", tmplData, partialProvider)
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(entryHtmlPath, []byte(entryHtml), 0644)
 		if err != nil {
 			return err
 		}
