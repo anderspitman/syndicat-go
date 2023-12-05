@@ -187,7 +187,7 @@ func NewServer(conf ServerConfig) *Server {
 
 		feedItem := &Entry{
 			Title:         titleText,
-			Author:        "Me",
+			Author:        host,
 			Content:       entryText,
 			PublishedTime: timestamp,
 			ModifiedTime:  timestamp,
@@ -299,8 +299,8 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		var contentText bytes.Buffer
-		if err := goldmark.Convert([]byte(entry.Content), &contentText); err != nil {
+		var contentHtmlBuf bytes.Buffer
+		if err := goldmark.Convert([]byte(entry.Content), &contentHtmlBuf); err != nil {
 			return err
 		}
 
@@ -312,14 +312,14 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		content := string(contentText.Bytes())
+		contentHtml := string(contentHtmlBuf.Bytes())
 
 		tmplData := struct {
 			Title   string
 			Content string
 		}{
 			Title:   entry.Title,
-			Content: content,
+			Content: contentHtml,
 		}
 
 		entryHtml, err := renderTemplate("templates/entry.html", tmplData, partialProvider)
@@ -362,16 +362,21 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
+		author := rootUri
+		if entry.Author != "" {
+			author = entry.Author
+		}
+
 		feedItem := &feeds.Item{
 			Title: entry.Title,
 			Author: &feeds.Author{
-				Name: entry.Author,
+				Name: author,
 			},
 			Id: entryUri,
 			Link: &feeds.Link{
 				Href: entryUri,
 			},
-			Content: entry.Content,
+			Content: contentHtml,
 			Updated: modTime,
 		}
 
@@ -396,10 +401,13 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	jsonFeed := (&feeds.JSON{Feed: feed}).JSONFeed()
 	jsonFeed.HomePageUrl = fmt.Sprintf("https://%s/", rootUri)
 	jsonFeed.FeedUrl = fmt.Sprintf("https://%s/feed.json", rootUri)
-	for _, item := range jsonFeed.Items {
-		item.ContentText = item.ContentHTML
-		item.ContentHTML = ""
-	}
+
+	// TODO: we might want to uncomment this to provide raw markdown in
+	// the JSON feed
+	//for _, item := range jsonFeed.Items {
+	//	item.ContentText = item.ContentHTML
+	//	item.ContentHTML = ""
+	//}
 
 	feedJson, err := jsonFeed.ToJSON()
 	if err != nil {
