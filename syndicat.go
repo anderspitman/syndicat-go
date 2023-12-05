@@ -367,9 +367,11 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	templateData := struct {
-		Title string
+		Title    string
+		LoggedIn bool
 	}{
-		Title: rootUri,
+		Title:    rootUri,
+		LoggedIn: true,
 	}
 
 	indexHtml, err := renderTemplate("templates/index.html", templateData, partialProvider)
@@ -383,9 +385,11 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	blogTmplData := struct {
-		Entries []*feeds.Item
+		Entries  []*feeds.Item
+		LoggedIn bool
 	}{
-		Entries: feedItems,
+		Entries:  feedItems,
+		LoggedIn: true,
 	}
 
 	blogHtml, err := renderTemplate("templates/blog.html", blogTmplData, partialProvider)
@@ -406,9 +410,11 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	editorTmplData := struct {
-		Title string
+		Title    string
+		LoggedIn bool
 	}{
-		Title: "Entree Entry",
+		Title:    "Entree Entry",
+		LoggedIn: true,
 	}
 
 	editorTmplHtml, err := renderTemplate("templates/entry-editor.html", editorTmplData, partialProvider)
