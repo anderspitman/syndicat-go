@@ -23,6 +23,19 @@ import (
 	//"willnorris.com/go/webmention"
 )
 
+type Entry struct {
+	Title         string   `json:"title"`
+	Author        string   `json:"author"`
+	ContentType   string   `json:"content_type"`
+	Content       string   `json:"content"`
+	PublishedTime string   `json:"published_time"`
+	ModifiedTime  string   `json:"modified_time"`
+	Tags          []string `json:"tags"`
+	VanityPath    string   `json:"vanity_path"`
+	Parent        string   `json:"parent"`
+	Children      []string `json:"children"`
+}
+
 type ServerConfig struct {
 	RootUri string
 }
@@ -140,16 +153,24 @@ func NewServer(conf ServerConfig) *Server {
 
 		entryPath := filepath.Join(entryDir, "index.json")
 
-		timestamp := time.Now()
+		timestamp := time.Now().Format(time.RFC3339)
 
-		feedItem := &feeds.JSONItem{
-			Title: titleText,
-			Author: &feeds.JSONAuthor{
-				Name: "Me",
-			},
-			ContentText:   entryText,
-			PublishedDate: &timestamp,
-			ModifiedDate:  &timestamp,
+		//feedItem := &feeds.JSONItem{
+		//	Title: titleText,
+		//	Author: &feeds.JSONAuthor{
+		//		Name: "Me",
+		//	},
+		//	ContentText:   entryText,
+		//	PublishedDate: &timestamp,
+		//	ModifiedDate:  &timestamp,
+		//}
+
+		feedItem := &Entry{
+			Title:         titleText,
+			Author:        "Me",
+			Content:       entryText,
+			PublishedTime: timestamp,
+			ModifiedTime:  timestamp,
 		}
 
 		jsonEntry, err := json.MarshalIndent(feedItem, "", "  ")
@@ -252,14 +273,14 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		var entry *feeds.JSONItem
+		var entry *Entry
 		err = json.Unmarshal(entryBytes, &entry)
 		if err != nil {
 			return err
 		}
 
 		var contentText bytes.Buffer
-		if err := goldmark.Convert([]byte(entry.ContentText), &contentText); err != nil {
+		if err := goldmark.Convert([]byte(entry.Content), &contentText); err != nil {
 			return err
 		}
 
@@ -293,7 +314,11 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		//	return err
 		//}
 
-		entryUri := fmt.Sprintf("https://%s/%s/", rootUri, entryId)
+		fragment := ""
+		if entry.VanityPath != "" {
+			fragment = fmt.Sprintf("#%s", entry.VanityPath)
+		}
+		entryUri := fmt.Sprintf("https://%s/%s/%s", rootUri, entryId, fragment)
 
 		//wmClient := webmention.New(nil)
 
@@ -312,17 +337,22 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
+		modTime, err := time.Parse("2006-01-02T15:04:05Z-07:00", entry.ModifiedTime)
+		if err != nil {
+			return err
+		}
+
 		feedItem := &feeds.Item{
 			Title: entry.Title,
 			Author: &feeds.Author{
-				Name: entry.Author.Name,
+				Name: entry.Author,
 			},
 			Id: entryUri,
 			Link: &feeds.Link{
 				Href: entryUri,
 			},
-			Content: entry.ContentText,
-			Updated: *entry.ModifiedDate,
+			Content: entry.Content,
+			Updated: modTime,
 		}
 
 		feedItems = append(feedItems, feedItem)
