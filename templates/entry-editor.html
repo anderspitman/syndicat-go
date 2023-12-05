@@ -6,7 +6,13 @@
   
     <form action='/entry-submit' method='POST'>
       <div>
-        <input type='text' name='title' />
+        <label for='title-input'>Title:</label>
+        <input id='title-input' type='text' name='title' />
+      </div>
+
+      <div>
+        <label for='parent-uri-input'>In response to URL:</label>
+        <input id='parent-uri-input' type='text' name='parent_uri' />
       </div>
   
       <textarea name='entry' rows='24' cols='80'></textarea>

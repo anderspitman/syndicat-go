@@ -1,8 +1,16 @@
 {{> templates/header.html}}
 
-<main class='content'>
+<main class='h-entry content'>
 
-  {{{Content}}}
+  {{#Entry.ParentUri}}
+  <p>
+    This entry is in response to <a class='u-in-reply-to' href='{{Entry.ParentUri}}'>{{Entry.ParentUri}}</a>
+  </p>
+  {{/Entry.ParentUri}}
+
+  <div class='e-content'>
+    {{{ContentHtml}}}
+  </div>
 
 </main>
 

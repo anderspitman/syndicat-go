@@ -32,8 +32,8 @@ type Entry struct {
 	ModifiedTime  string   `json:"modified_time"`
 	Tags          []string `json:"tags"`
 	VanityPath    string   `json:"vanity_path"`
-	Parent        string   `json:"parent"`
-	Children      []string `json:"children"`
+	ParentUri     string   `json:"parent_uri"`
+	ChildrenUris  []string `json:"children_uris"`
 }
 
 type ServerConfig struct {
@@ -130,6 +130,7 @@ func NewServer(conf ServerConfig) *Server {
 
 		titleText := r.Form.Get("title")
 		entryText := r.Form.Get("entry")
+		parentUri := r.Form.Get("parent_uri")
 
 		host := getHost(r)
 
@@ -191,6 +192,7 @@ func NewServer(conf ServerConfig) *Server {
 			Content:       entryText,
 			PublishedTime: timestamp,
 			ModifiedTime:  timestamp,
+			ParentUri:     parentUri,
 		}
 
 		jsonEntry, err := json.MarshalIndent(feedItem, "", "  ")
@@ -315,11 +317,11 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		contentHtml := string(contentHtmlBuf.Bytes())
 
 		tmplData := struct {
-			Title   string
-			Content string
+			Entry       *Entry
+			ContentHtml string
 		}{
-			Title:   entry.Title,
-			Content: contentHtml,
+			Entry:       entry,
+			ContentHtml: contentHtml,
 		}
 
 		entryHtml, err := renderTemplate("templates/entry.html", tmplData, partialProvider)

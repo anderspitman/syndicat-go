@@ -99,7 +99,7 @@ func main() {
 			Content:       string(contentBytes),
 			VanityPath:    legacyEntry.UrlName,
 			Tags:          []string{},
-			Children:      []string{},
+			ChildrenUris:  []string{},
 		}
 
 		switch legacyEntry.Format {
