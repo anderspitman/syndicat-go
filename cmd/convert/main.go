@@ -84,10 +84,12 @@ func main() {
 
 		timestamp := legacyEntry.Timestamp
 		if len(timestamp) == 20 {
-			timestamp = timestamp + "+00:00"
+			timestamp = timestamp[:19] + "+00:00"
 		} else if len(timestamp) == 10 {
-			timestamp = timestamp + "T00:00:00Z+00:00"
+			timestamp = timestamp + "T00:00:00+00:00"
 		}
+
+		fmt.Println(legacyEntry.Timestamp, timestamp)
 
 		entry := &syndicat.Entry{
 			Title:         legacyEntry.Title,

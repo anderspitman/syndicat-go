@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
+	"strconv"
 	"time"
 
 	"github.com/anderspitman/treemess-go"
@@ -101,9 +101,6 @@ func NewServer(conf ServerConfig) *Server {
 
 	partialProvider := &PartialProvider{}
 
-	nextId := 0
-	mut := &sync.Mutex{}
-
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
 		host := getHost(r)
@@ -134,14 +131,37 @@ func NewServer(conf ServerConfig) *Server {
 		titleText := r.Form.Get("title")
 		entryText := r.Form.Get("entry")
 
-		entryId := nextId
-		mut.Lock()
-		nextId++
-		mut.Unlock()
-
 		host := getHost(r)
 
 		userDir := filepath.Join(sourceDir, host)
+
+		dirItems, err := os.ReadDir(userDir)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		lastId := 0
+
+		for _, item := range dirItems {
+			entryIdStr := item.Name()
+
+			entryId, err := strconv.Atoi(entryIdStr)
+			if err != nil {
+				continue
+			}
+
+			if !item.IsDir() {
+				continue
+			}
+
+			if entryId > lastId {
+				lastId = entryId
+			}
+		}
+
+		entryId := lastId + 1
 
 		entryDir := fmt.Sprintf("%s/%d", userDir, entryId)
 		err = os.MkdirAll(entryDir, 0755)
@@ -337,7 +357,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		modTime, err := time.Parse("2006-01-02T15:04:05Z-07:00", entry.ModifiedTime)
+		modTime, err := time.Parse("2006-01-02T15:04:05-07:00", entry.ModifiedTime)
 		if err != nil {
 			return err
 		}
