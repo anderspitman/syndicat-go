@@ -5,8 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"strings"
-	//"html/template"
+	//"strings"
 	"io"
 	"log"
 	"net/http"
@@ -21,7 +20,7 @@ import (
 	"github.com/gorilla/feeds"
 	"github.com/lastlogin-io/obligator"
 	"github.com/yuin/goldmark"
-	"willnorris.com/go/webmention"
+	//"willnorris.com/go/webmention"
 )
 
 type ServerConfig struct {
@@ -115,25 +114,6 @@ func NewServer(conf ServerConfig) *Server {
 		}
 	})
 
-	http.HandleFunc("/entry-editor", func(w http.ResponseWriter, r *http.Request) {
-
-		templateData := struct {
-			Title string
-		}{
-			Title: "Entree Entry",
-		}
-
-		tmplHtml, err := renderTemplate("templates/entry-editor.html", templateData, partialProvider)
-		if err != nil {
-			w.WriteHeader(500)
-			io.WriteString(w, err.Error())
-			return
-		}
-
-		w.WriteHeader(200)
-		io.WriteString(w, tmplHtml)
-	})
-
 	http.HandleFunc("/entry-submit", func(w http.ResponseWriter, r *http.Request) {
 
 		r.ParseForm()
@@ -193,7 +173,8 @@ func NewServer(conf ServerConfig) *Server {
 			return
 		}
 
-		http.Redirect(w, r, "/entry-editor", http.StatusSeeOther)
+		entryUriPath := fmt.Sprintf("/%d/", entryId)
+		http.Redirect(w, r, entryUriPath, http.StatusSeeOther)
 	})
 
 	err = render(rootUri, sourceDir, serveDir, partialProvider)
@@ -305,28 +286,26 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		fmt.Println(entryHtml)
+		//reader := strings.NewReader(entryHtml)
 
-		reader := strings.NewReader(entryHtml)
-
-		links, err := webmention.DiscoverLinksFromReader(reader, rootUri, ".content")
-		if err != nil {
-			return err
-		}
+		//links, err := webmention.DiscoverLinksFromReader(reader, rootUri, ".content")
+		//if err != nil {
+		//	return err
+		//}
 
 		entryUri := fmt.Sprintf("https://%s/%s/", rootUri, entryId)
 
-		wmClient := webmention.New(nil)
+		//wmClient := webmention.New(nil)
 
-		for _, link := range links {
-			endpoint, err := wmClient.DiscoverEndpoint(link)
-			if err != nil {
-				return err
-			}
+		//for _, link := range links {
+		//	endpoint, err := wmClient.DiscoverEndpoint(link)
+		//	if err != nil {
+		//		return err
+		//	}
 
-			fmt.Println(endpoint, entryUri, link)
-			wmClient.SendWebmention(endpoint, entryUri, link)
-		}
+		//	fmt.Println(endpoint, entryUri, link)
+		//	wmClient.SendWebmention(endpoint, entryUri, link)
+		//}
 
 		err = os.WriteFile(entryHtmlPath, []byte(entryHtml), 0644)
 		if err != nil {
@@ -399,6 +378,52 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	err = os.WriteFile(filepath.Join(serveDir, "index.html"), []byte(indexHtml), 0644)
+	if err != nil {
+		return err
+	}
+
+	blogTmplData := struct {
+		Entries []*feeds.Item
+	}{
+		Entries: feedItems,
+	}
+
+	blogHtml, err := renderTemplate("templates/blog.html", blogTmplData, partialProvider)
+	if err != nil {
+		return err
+	}
+
+	blogDir := filepath.Join(serveDir, "blog")
+
+	err = os.MkdirAll(blogDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filepath.Join(blogDir, "index.html"), []byte(blogHtml), 0644)
+	if err != nil {
+		return err
+	}
+
+	editorTmplData := struct {
+		Title string
+	}{
+		Title: "Entree Entry",
+	}
+
+	editorTmplHtml, err := renderTemplate("templates/entry-editor.html", editorTmplData, partialProvider)
+	if err != nil {
+		return err
+	}
+
+	editorDir := filepath.Join(serveDir, "entry-editor")
+
+	err = os.MkdirAll(editorDir, 0755)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filepath.Join(editorDir, "index.html"), []byte(editorTmplHtml), 0644)
 	if err != nil {
 		return err
 	}
