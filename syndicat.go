@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	//"strings"
 	"io"
 	"log"
@@ -24,6 +25,7 @@ import (
 	//"willnorris.com/go/webmention"
 	"github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
+	"github.com/go-ap/jsonld"
 )
 
 type Entry struct {
@@ -582,30 +584,65 @@ func getTree(apClient *client.C, uri activitypub.IRI, depth int) error {
 }
 
 func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, error) {
+
+	parsedUri, err := url.Parse(string(uri))
+	if err != nil {
+		return nil, err
+	}
+
+	cacheDir := "ap_cache"
+	objCachePath := filepath.Join(cacheDir, parsedUri.Host, parsedUri.Path)
+	objCacheDir := filepath.Dir(objCachePath)
+
+	err = os.MkdirAll(objCacheDir, 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	objCacheBytes, err := os.ReadFile(objCachePath)
+	if err != nil {
+		// Noop
+	} else {
+		var cachedObj *activitypub.Object
+		err = jsonld.Unmarshal(objCacheBytes, &cachedObj)
+		if err != nil {
+			return nil, err
+		}
+
+		return cachedObj, nil
+	}
+
+	fmt.Println("not cached", uri)
+
 	ctx := context.Background()
 
 	item, err := apClient.CtxLoadIRI(ctx, uri)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("here1")
 
 	obj, err := activitypub.ToObject(item)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Println("here1.1")
 	allReplies := activitypub.OrderedCollectionNew("fakeid")
 
+	fmt.Println("here1.2")
 	replies, err := activitypub.ToCollection(obj.Replies)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Println("here1.3")
 	repliesPage, err := activitypub.ToCollectionPage(replies.First)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Println("here1.4")
 	for _, reply := range repliesPage.Items {
 		iri, err := getIri(apClient, reply)
 		if err != nil {
@@ -645,6 +682,18 @@ func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, er
 	allReplies.TotalItems = uint(len(allReplies.OrderedItems))
 	obj.Replies = allReplies
 
+	objWriteBytes, err := jsonld.Marshal(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("here2")
+	err = os.WriteFile(objCachePath, []byte(objWriteBytes), 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("here3")
 	return obj, nil
 }
 
