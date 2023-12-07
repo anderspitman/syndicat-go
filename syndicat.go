@@ -2,6 +2,7 @@ package syndicat
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -21,6 +22,8 @@ import (
 	"github.com/lastlogin-io/obligator"
 	"github.com/yuin/goldmark"
 	//"willnorris.com/go/webmention"
+	"github.com/go-ap/activitypub"
+	"github.com/go-ap/client"
 )
 
 type Entry struct {
@@ -59,6 +62,8 @@ func (p *PartialProvider) Get(tmplPath string) (string, error) {
 }
 
 func NewServer(conf ServerConfig) *Server {
+
+	apClient := client.New()
 
 	rootUri := conf.RootUri
 	authUri := "auth." + rootUri
@@ -122,6 +127,25 @@ func NewServer(conf ServerConfig) *Server {
 			authServer.ServeHTTP(w, r)
 			return
 		}
+	})
+
+	http.HandleFunc("/get-post", func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+
+		uri := activitypub.IRI(r.Form.Get("uri"))
+
+		//obj, err := getObject(apClient, uri)
+		err := getTree(apClient, uri, 0)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		//fmt.Println("obj")
+		//printJson(obj)
+
+		http.Redirect(w, r, "/entry-editor/", http.StatusSeeOther)
 	})
 
 	http.HandleFunc("/entry-submit", func(w http.ResponseWriter, r *http.Request) {
@@ -526,4 +550,116 @@ func getHost(r *http.Request) string {
 	}
 
 	return host
+}
+
+func getTree(apClient *client.C, uri activitypub.IRI, depth int) error {
+
+	for i := 0; i < depth; i++ {
+		fmt.Print("    ")
+	}
+
+	fmt.Println(uri, depth)
+
+	obj, err := getObject(apClient, uri)
+	if err != nil {
+		return err
+	}
+
+	replies, err := activitypub.ToOrderedCollection(obj.Replies)
+	if err != nil {
+		return err
+	}
+
+	for _, reply := range replies.OrderedItems {
+		iri, err := getIri(apClient, reply)
+		if err != nil {
+			return err
+		}
+		err = getTree(apClient, iri, depth+1)
+	}
+
+	return nil
+}
+
+func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, error) {
+	ctx := context.Background()
+
+	item, err := apClient.CtxLoadIRI(ctx, uri)
+	if err != nil {
+		return nil, err
+	}
+
+	obj, err := activitypub.ToObject(item)
+	if err != nil {
+		return nil, err
+	}
+
+	allReplies := activitypub.OrderedCollectionNew("fakeid")
+
+	replies, err := activitypub.ToCollection(obj.Replies)
+	if err != nil {
+		return nil, err
+	}
+
+	repliesPage, err := activitypub.ToCollectionPage(replies.First)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, reply := range repliesPage.Items {
+		iri, err := getIri(apClient, reply)
+		if err != nil {
+			return nil, err
+		}
+		allReplies.OrderedItems = append(allReplies.OrderedItems, iri)
+	}
+
+	next := repliesPage.Next.(activitypub.IRI)
+
+	for {
+		nextPageItem, err := apClient.CtxLoadIRI(ctx, next)
+		if err != nil {
+			return nil, err
+		}
+
+		nextPage, err := activitypub.ToCollectionPage(nextPageItem)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, reply := range nextPage.Items {
+			iri, err := getIri(apClient, reply)
+			if err != nil {
+				return nil, err
+			}
+			allReplies.OrderedItems = append(allReplies.OrderedItems, iri)
+		}
+
+		if nextPage.Next != nil {
+			next = nextPage.Next.(activitypub.IRI)
+		} else {
+			break
+		}
+	}
+
+	allReplies.TotalItems = uint(len(allReplies.OrderedItems))
+	obj.Replies = allReplies
+
+	return obj, nil
+}
+
+func getIri(apClient *client.C, item activitypub.Item) (activitypub.IRI, error) {
+	var iri activitypub.IRI
+	if item.IsLink() {
+		iri = item.(activitypub.IRI)
+	} else {
+		obj, err := activitypub.ToObject(item)
+		if err != nil {
+			return "", err
+		}
+
+		iri = obj.ID
+	}
+
+	return iri, nil
 }
