@@ -17,21 +17,9 @@ import (
 	"github.com/gemdrive/gemdrive-go"
 	"github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
+	"github.com/go-ap/jsonld"
 	"github.com/lastlogin-io/obligator"
 )
-
-type Entry struct {
-	Title         string   `json:"title"`
-	Author        string   `json:"author"`
-	ContentType   string   `json:"content_type"`
-	Content       string   `json:"content"`
-	PublishedTime string   `json:"published_time"`
-	ModifiedTime  string   `json:"modified_time"`
-	Tags          []string `json:"tags"`
-	VanityPath    string   `json:"vanity_path"`
-	ParentUri     string   `json:"parent_uri"`
-	ChildrenUris  []string `json:"children_uris"`
-}
 
 type ServerConfig struct {
 	RootUri string
@@ -192,28 +180,31 @@ func NewServer(conf ServerConfig) *Server {
 
 		entryPath := filepath.Join(entryDir, "index.json")
 
-		timestamp := time.Now().Format(time.RFC3339)
+		timestamp := time.Now()
 
-		//feedItem := &feeds.JSONItem{
-		//	Title: titleText,
-		//	Author: &feeds.JSONAuthor{
-		//		Name: "Me",
-		//	},
-		//	ContentText:   entryText,
-		//	PublishedDate: &timestamp,
-		//	ModifiedDate:  &timestamp,
-		//}
+		entryUri := fmt.Sprintf("https://%s/%d/", host, entryId)
 
-		feedItem := &Entry{
-			Title:         titleText,
-			Author:        host,
-			Content:       entryText,
-			PublishedTime: timestamp,
-			ModifiedTime:  timestamp,
-			ParentUri:     parentUri,
+		feedItem := &activitypub.Object{
+			ID: activitypub.IRI(entryUri),
+			Name: activitypub.NaturalLanguageValues{
+				activitypub.LangRefValue{
+					Value: []byte(titleText),
+				},
+			},
+			AttributedTo: activitypub.IRI(host),
+			Content: activitypub.NaturalLanguageValues{
+				activitypub.LangRefValue{
+					Value: []byte(entryText),
+				},
+			},
+			Published: timestamp,
+			Updated:   timestamp,
+			InReplyTo: activitypub.IRI(parentUri),
 		}
 
-		jsonEntry, err := json.MarshalIndent(feedItem, "", "  ")
+		printJsonLd(feedItem)
+
+		jsonEntry, err := jsonld.Marshal(feedItem)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -267,6 +258,11 @@ func renderTemplate(tmplPath string, templateData interface{}, partialProvider *
 
 func printJson(data interface{}) {
 	d, _ := json.MarshalIndent(data, "", "  ")
+	fmt.Println(string(d))
+}
+
+func printJsonLd(data interface{}) {
+	d, _ := jsonld.Marshal(data)
 	fmt.Println(string(d))
 }
 

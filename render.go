@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/go-ap/activitypub"
 	"github.com/gorilla/feeds"
 	"github.com/yuin/goldmark"
 )
@@ -75,14 +76,14 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		var entry *Entry
+		var entry *activitypub.Object
 		err = json.Unmarshal(entryBytes, &entry)
 		if err != nil {
 			return err
 		}
 
 		var contentHtmlBuf bytes.Buffer
-		if err := goldmark.Convert([]byte(entry.Content), &contentHtmlBuf); err != nil {
+		if err := goldmark.Convert(entry.Content[0].Value, &contentHtmlBuf); err != nil {
 			return err
 		}
 
@@ -97,7 +98,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		contentHtml := string(contentHtmlBuf.Bytes())
 
 		tmplData := struct {
-			Entry       *Entry
+			Entry       *activitypub.Object
 			ContentHtml string
 		}{
 			Entry:       entry,
@@ -117,9 +118,10 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		//}
 
 		fragment := ""
-		if entry.VanityPath != "" {
-			fragment = fmt.Sprintf("#%s", entry.VanityPath)
-		}
+		// TODO: put in separate metadata file?
+		//if entry.VanityPath != "" {
+		//	fragment = fmt.Sprintf("#%s", entry.VanityPath)
+		//}
 		entryUri := fmt.Sprintf("https://%s/%s/%s", rootUri, entryId, fragment)
 
 		//wmClient := webmention.New(nil)
@@ -139,27 +141,23 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		modTime, err := time.Parse("2006-01-02T15:04:05-07:00", entry.ModifiedTime)
-		if err != nil {
-			return err
-		}
-
-		author := rootUri
-		if entry.Author != "" {
-			author = entry.Author
+		author := activitypub.IRI(rootUri)
+		if activitypub.IsIRI(entry.AttributedTo) && entry.AttributedTo != activitypub.IRI("") {
+			fmt.Println("at", entry.AttributedTo)
+			author = entry.AttributedTo.(activitypub.IRI)
 		}
 
 		feedItem := &feeds.Item{
-			Title: entry.Title,
+			Title: string(entry.Name[0].Value),
 			Author: &feeds.Author{
-				Name: author,
+				Name: string(author),
 			},
 			Id: entryUri,
 			Link: &feeds.Link{
 				Href: entryUri,
 			},
 			Content: contentHtml,
-			Updated: modTime,
+			Updated: entry.Updated,
 		}
 
 		feedItems = append(feedItems, feedItem)
