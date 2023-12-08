@@ -9,9 +9,29 @@ import (
 	"time"
 
 	"github.com/go-ap/activitypub"
+	"github.com/go-ap/jsonld"
 	"github.com/gorilla/feeds"
 	"github.com/yuin/goldmark"
 )
+
+type WebFingerAccount struct {
+	Subject string           `json:"subject"`
+	Links   []*WebFingerLink `json:"links"`
+}
+
+type WebFingerLink struct {
+	Rel  string `json:"rel"`
+	Type string `json:"type"`
+	Href string `json:"href"`
+}
+
+type ActivityPubActor struct {
+	Context []string `json:"@context"`
+	Id      string   `json:"id"`
+	Type    string   `json:"type"`
+	Inbox   string   `json:"inbox"`
+	Outbox  string   `json:"outbox"`
+}
 
 func render(rootUri, sourceDir, serveDir string, partialProvider *PartialProvider) error {
 
@@ -64,6 +84,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	feedItems := []*feeds.Item{}
+	var outboxItems activitypub.ItemCollection
 
 	for _, item := range dirItems {
 
@@ -161,6 +182,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		}
 
 		feedItems = append(feedItems, feedItem)
+		outboxItems = append(outboxItems, entry)
 	}
 
 	feed := &feeds.Feed{
@@ -200,6 +222,89 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	err = os.WriteFile(filepath.Join(serveDir, "feed.json"), []byte(feedJson), 0644)
+	if err != nil {
+		return err
+	}
+
+	apOutboxUri := fmt.Sprintf("https://%s/outbox", rootUri)
+	apOutbox := activitypub.OrderedCollectionNew(activitypub.IRI(apOutboxUri))
+	apOutbox.OrderedItems = outboxItems
+
+	outboxJson, err := jsonld.WithContext(
+		jsonld.IRI(activitypub.ActivityBaseURI),
+	).Marshal(apOutbox)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filepath.Join(serveDir, "outbox"), outboxJson, 0644)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filepath.Join(serveDir, "inbox"), []byte{}, 0644)
+	if err != nil {
+		return err
+	}
+
+	wf := &WebFingerAccount{
+		Subject: fmt.Sprintf("me@%s", rootUri),
+		Links: []*WebFingerLink{
+			&WebFingerLink{
+				Rel:  "self",
+				Type: "application/activity+json",
+				Href: fmt.Sprintf("https://%s/ap.json", rootUri),
+			},
+		},
+	}
+
+	wfJsonBytes, err := json.MarshalIndent(wf, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	wfPath := filepath.Join(serveDir, ".well-known", "webfinger")
+
+	err = os.MkdirAll(filepath.Dir(wfPath), 0755)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(wfPath, wfJsonBytes, 0644)
+	if err != nil {
+		return err
+	}
+
+	apId := activitypub.IRI(fmt.Sprintf("https://%s/ap.json", rootUri))
+	apActor := &activitypub.Actor{
+		ID:     apId,
+		URL:    activitypub.IRI(fmt.Sprintf("https://%s", rootUri)),
+		Type:   "Person",
+		Inbox:  activitypub.IRI(fmt.Sprintf("https://%s/inbox", rootUri)),
+		Outbox: activitypub.IRI(fmt.Sprintf("https://%s/outbox", rootUri)),
+		PreferredUsername: activitypub.NaturalLanguageValues{
+			activitypub.LangRefValue{
+				Value: []byte("me"),
+			},
+		},
+		Name: activitypub.NaturalLanguageValues{
+			activitypub.LangRefValue{
+				Value: []byte("me"),
+			},
+		},
+	}
+
+	// See here: https://github.com/go-ap/activitypub/issues/11
+	apProfileBytes, err := jsonld.WithContext(
+		jsonld.IRI(activitypub.ActivityBaseURI),
+	).Marshal(apActor)
+	if err != nil {
+		return err
+	}
+
+	apProfilePath := filepath.Join(serveDir, "ap.json")
+
+	err = os.WriteFile(apProfilePath, apProfileBytes, 0644)
 	if err != nil {
 		return err
 	}
