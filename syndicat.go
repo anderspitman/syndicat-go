@@ -57,13 +57,15 @@ func NewServer(conf ServerConfig) *Server {
 	authServer := obligator.NewServer(authConfig)
 
 	fsDir := "files"
-	sourceDir := filepath.Join(fsDir, "source")
-	serveDir := filepath.Join(fsDir, "serve")
+	sourceDir := fsDir
+	serveDir := fsDir
+	//sourceDir := filepath.Join(fsDir, "source")
+	//serveDir := filepath.Join(fsDir, "serve")
 
 	gdConfig := &gemdrive.Config{
 		Dirs: []string{fsDir},
 		DomainMap: map[string]string{
-			rootUri: fmt.Sprintf("/serve/%s", rootUri),
+			rootUri: fmt.Sprintf("/%s", rootUri),
 		},
 	}
 
@@ -178,14 +180,24 @@ func NewServer(conf ServerConfig) *Server {
 			return
 		}
 
-		entryPath := filepath.Join(entryDir, "index.json")
+		entryPath := filepath.Join(entryDir, "entry.jsonld")
 
 		timestamp := time.Now()
 
 		entryUri := fmt.Sprintf("https://%s/%d/", host, entryId)
+		entryJsonUri := fmt.Sprintf("%sentry.jsonld", entryUri)
+
+		htmlLink := activitypub.LinkNew("", activitypub.LinkType)
+		htmlLink.Href = activitypub.IRI(entryUri)
+		htmlLink.MediaType = "text/html"
+
+		to := activitypub.ItemCollection{
+			activitypub.IRI("https://www.w3.org/ns/activitystreams#Public"),
+		}
 
 		feedItem := &activitypub.Object{
-			ID: activitypub.IRI(entryUri),
+			Type: activitypub.NoteType,
+			ID:   activitypub.IRI(entryJsonUri),
 			Name: activitypub.NaturalLanguageValues{
 				activitypub.LangRefValue{
 					Value: []byte(titleText),
@@ -200,11 +212,13 @@ func NewServer(conf ServerConfig) *Server {
 			Published: timestamp,
 			Updated:   timestamp,
 			InReplyTo: activitypub.IRI(parentUri),
+			URL:       htmlLink,
+			To:        to,
 		}
 
-		printJsonLd(feedItem)
-
-		jsonEntry, err := jsonld.Marshal(feedItem)
+		jsonEntry, err := jsonld.WithContext(
+			jsonld.IRI(activitypub.ActivityBaseURI),
+		).Marshal(feedItem)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
@@ -212,6 +226,29 @@ func NewServer(conf ServerConfig) *Server {
 		}
 
 		err = os.WriteFile(entryPath, jsonEntry, 0644)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		activityPath := filepath.Join(entryDir, "activity.jsonld")
+		activityId := activitypub.IRI(fmt.Sprintf("%s%s", entryUri, "activity.jsonld"))
+		activity := activitypub.ActivityNew(activityId, activitypub.CreateType, feedItem)
+		activity.Actor = activitypub.IRI(fmt.Sprintf("https://%s/ap.jsonld", rootUri))
+		activity.To = to
+		activity.Published = feedItem.Published
+
+		activityJsonBytes, err := jsonld.WithContext(
+			jsonld.IRI(activitypub.ActivityBaseURI),
+		).Marshal(activity)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		err = os.WriteFile(activityPath, activityJsonBytes, 0644)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())

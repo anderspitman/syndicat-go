@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/go-ap/activitypub"
@@ -88,17 +89,33 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 
 	for _, item := range dirItems {
 
-		entryId := item.Name()
-		entryDir := filepath.Join(entriesDir, entryId)
-		entryTextPath := filepath.Join(entryDir, "index.json")
+		entryIdStr := item.Name()
 
-		entryBytes, err := os.ReadFile(entryTextPath)
+		entryId, err := strconv.Atoi(entryIdStr)
+		if err != nil {
+			continue
+		}
+
+		entryDir := fmt.Sprintf("%s/%d", entriesDir, entryId)
+		entryTextPath := filepath.Join(entryDir, "activity.jsonld")
+
+		activityBytes, err := os.ReadFile(entryTextPath)
 		if err != nil {
 			return err
 		}
 
-		var entry *activitypub.Object
-		err = json.Unmarshal(entryBytes, &entry)
+		var activityItem *activitypub.Activity
+		err = json.Unmarshal(activityBytes, &activityItem)
+		if err != nil {
+			return err
+		}
+
+		activity, err := activitypub.ToActivity(activityItem)
+		if err != nil {
+			return err
+		}
+
+		entry, err := activitypub.ToObject(activity.Object)
 		if err != nil {
 			return err
 		}
@@ -108,7 +125,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		entryRenderDir := filepath.Join(serveDir, entryId)
+		entryRenderDir := fmt.Sprintf("%s/%d", serveDir, entryId)
 		entryHtmlPath := filepath.Join(entryRenderDir, "index.html")
 
 		err = os.MkdirAll(entryRenderDir, 0755)
@@ -121,9 +138,11 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		tmplData := struct {
 			Entry       *activitypub.Object
 			ContentHtml string
+			LoggedIn    bool
 		}{
 			Entry:       entry,
 			ContentHtml: contentHtml,
+			LoggedIn:    true,
 		}
 
 		entryHtml, err := renderTemplate("templates/entry.html", tmplData, partialProvider)
@@ -143,7 +162,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		//if entry.VanityPath != "" {
 		//	fragment = fmt.Sprintf("#%s", entry.VanityPath)
 		//}
-		entryUri := fmt.Sprintf("https://%s/%s/%s", rootUri, entryId, fragment)
+		entryUri := fmt.Sprintf("https://%s/%d/%s", rootUri, entryId, fragment)
 
 		//wmClient := webmention.New(nil)
 
@@ -164,7 +183,6 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 
 		author := activitypub.IRI(rootUri)
 		if activitypub.IsIRI(entry.AttributedTo) && entry.AttributedTo != activitypub.IRI("") {
-			fmt.Println("at", entry.AttributedTo)
 			author = entry.AttributedTo.(activitypub.IRI)
 		}
 
@@ -182,7 +200,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		}
 
 		feedItems = append(feedItems, feedItem)
-		outboxItems = append(outboxItems, entry)
+		outboxItems = append(outboxItems, activity)
 	}
 
 	feed := &feeds.Feed{
@@ -248,12 +266,12 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	wf := &WebFingerAccount{
-		Subject: fmt.Sprintf("me@%s", rootUri),
+		Subject: fmt.Sprintf("me9@%s", rootUri),
 		Links: []*WebFingerLink{
 			&WebFingerLink{
 				Rel:  "self",
 				Type: "application/activity+json",
-				Href: fmt.Sprintf("https://%s/ap.json", rootUri),
+				Href: fmt.Sprintf("https://%s/ap.jsonld", rootUri),
 			},
 		},
 	}
@@ -275,9 +293,9 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		return err
 	}
 
-	apId := activitypub.IRI(fmt.Sprintf("https://%s/ap.json", rootUri))
+	actorId := activitypub.IRI(fmt.Sprintf("https://%s/ap.jsonld", rootUri))
 	apActor := &activitypub.Actor{
-		ID:     apId,
+		ID:     actorId,
 		URL:    activitypub.IRI(fmt.Sprintf("https://%s", rootUri)),
 		Type:   "Person",
 		Inbox:  activitypub.IRI(fmt.Sprintf("https://%s/inbox", rootUri)),
@@ -302,7 +320,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		return err
 	}
 
-	apProfilePath := filepath.Join(serveDir, "ap.json")
+	apProfilePath := filepath.Join(serveDir, "ap.jsonld")
 
 	err = os.WriteFile(apProfilePath, apProfileBytes, 0644)
 	if err != nil {
