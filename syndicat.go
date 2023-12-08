@@ -92,6 +92,9 @@ func NewServer(conf ServerConfig) *Server {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
+		printJson(r.URL)
+		printJson(r.Header)
+
 		host := getHost(r)
 
 		switch host {

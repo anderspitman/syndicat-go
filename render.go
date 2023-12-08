@@ -244,7 +244,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		return err
 	}
 
-	apOutboxUri := fmt.Sprintf("https://%s/outbox", rootUri)
+	apOutboxUri := fmt.Sprintf("https://%s/outbox.jsonld", rootUri)
 	apOutbox := activitypub.OrderedCollectionNew(activitypub.IRI(apOutboxUri))
 	apOutbox.OrderedItems = outboxItems
 
@@ -255,7 +255,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		return err
 	}
 
-	err = os.WriteFile(filepath.Join(serveDir, "outbox"), outboxJson, 0644)
+	err = os.WriteFile(filepath.Join(serveDir, "outbox.jsonld"), outboxJson, 0644)
 	if err != nil {
 		return err
 	}
@@ -266,7 +266,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	wf := &WebFingerAccount{
-		Subject: fmt.Sprintf("me9@%s", rootUri),
+		Subject: fmt.Sprintf("me12@%s", rootUri),
 		Links: []*WebFingerLink{
 			&WebFingerLink{
 				Rel:  "self",
@@ -299,7 +299,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		URL:    activitypub.IRI(fmt.Sprintf("https://%s", rootUri)),
 		Type:   "Person",
 		Inbox:  activitypub.IRI(fmt.Sprintf("https://%s/inbox", rootUri)),
-		Outbox: activitypub.IRI(fmt.Sprintf("https://%s/outbox", rootUri)),
+		Outbox: activitypub.IRI(fmt.Sprintf("https://%s/outbox.jsonld", rootUri)),
 		PreferredUsername: activitypub.NaturalLanguageValues{
 			activitypub.LangRefValue{
 				Value: []byte("me"),
