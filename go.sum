@@ -68,6 +68,8 @@ github.com/go-ap/errors v0.0.0-20231003111023-183eef4b31b7 h1:I2nuhyVI/48VXoRCCZ
 github.com/go-ap/errors v0.0.0-20231003111023-183eef4b31b7/go.mod h1:5x8a6P/dhmMGFxWLcyYlyOuJ2lRNaHGhRv+yu8BaTSI=
 github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73 h1:GMKIYXyXPGIp+hYiWOhfqK4A023HdgisDT4YGgf99mw=
 github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73/go.mod h1:jyveZeGw5LaADntW+UEsMjl3IlIwk+DxlYNsbofQkGA=
+github.com/go-fed/httpsig v1.1.0 h1:9M+hb0jkEICD8/cAiNqEB66R87tTINszBRTjwjQzWcI=
+github.com/go-fed/httpsig v1.1.0/go.mod h1:RCMrTZvN1bJYtofsG4rd5NaO5obxQ5xBkdiS7xsT7bM=
 github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9AVAgeJqvqgH9Q5CA+iKCZ2gyEVpxRU=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20191125211704-12ad95a8df72/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20200222043503-6f7a984d4dc4/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=

@@ -20,9 +20,27 @@
       <button type='submit'>Submit</button>
     </form>
 
-  <form action='/get-post' method='POST'>
+    <form action='/get-object' method='POST'>
       <div>
-        <label for='uri-input'>URI:</label>
+        <label for='uri-input'>get-object URI:</label>
+        <input id='uri-input' type='text' name='uri' />
+      </div>
+  
+      <button type='submit'>Submit</button>
+    </form>
+
+    <form action='/get-tree' method='POST'>
+      <div>
+        <label for='uri-input'>get-tree URI:</label>
+        <input id='uri-input' type='text' name='uri' />
+      </div>
+  
+      <button type='submit'>Submit</button>
+    </form>
+
+    <form action='/debug' method='POST'>
+      <div>
+        <label for='uri-input'>debug URI:</label>
         <input id='uri-input' type='text' name='uri' />
       </div>
   

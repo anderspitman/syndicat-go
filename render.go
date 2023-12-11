@@ -77,6 +77,17 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		return err
 	}
 
+	privKeyPath := filepath.Join(sourceDir, "private_key.pem")
+	privKey, err := LoadRSAKey(privKeyPath)
+	if err != nil {
+		return err
+	}
+
+	publicKeyPem, err := GetPublicKeyPem(privKey)
+	if err != nil {
+		return err
+	}
+
 	entriesDir := sourceDir
 
 	dirItems, err := os.ReadDir(entriesDir)
@@ -295,6 +306,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	actorId := activitypub.IRI(fmt.Sprintf("https://%s/ap.jsonld", rootUri))
+	pubKeyId := actorId + "#main-key"
 	apActor := &activitypub.Actor{
 		ID:     actorId,
 		URL:    activitypub.IRI(fmt.Sprintf("https://%s", rootUri)),
@@ -310,6 +322,11 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			activitypub.LangRefValue{
 				Value: []byte("me"),
 			},
+		},
+		PublicKey: activitypub.PublicKey{
+			ID:           pubKeyId,
+			Owner:        actorId,
+			PublicKeyPem: publicKeyPem,
 		},
 	}
 

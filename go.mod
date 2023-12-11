@@ -6,7 +6,10 @@ require (
 	github.com/anderspitman/treemess-go v0.0.0-20210313015619-ba255d9f1e0f
 	github.com/cbroglie/mustache v1.4.0
 	github.com/gemdrive/gemdrive-go v0.0.0-20231127205839-b075940da417
+	github.com/go-ap/activitypub v0.0.0-20231114162308-e219254dc5c9
 	github.com/go-ap/client v0.0.0-20231114162455-f09cf9766e95
+	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73
+	github.com/go-fed/httpsig v1.1.0
 	github.com/gorilla/feeds v1.1.2
 	github.com/lastlogin-io/obligator v0.0.0-20231127174642-702901d024a9
 	github.com/yuin/goldmark v1.4.13
@@ -17,9 +20,7 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8 // indirect
 	github.com/caddyserver/certmagic v0.15.3 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
-	github.com/go-ap/activitypub v0.0.0-20231114162308-e219254dc5c9 // indirect
 	github.com/go-ap/errors v0.0.0-20231003111023-183eef4b31b7 // indirect
-	github.com/go-ap/jsonld v0.0.0-20221030091449-f2a191312c73 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/ip2location/ip2location-go/v9 v9.6.0 // indirect

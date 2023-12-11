@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -44,8 +45,6 @@ func (p *PartialProvider) Get(tmplPath string) (string, error) {
 }
 
 func NewServer(conf ServerConfig) *Server {
-
-	apClient := client.New()
 
 	rootUri := conf.RootUri
 	authUri := "auth." + rootUri
@@ -88,12 +87,53 @@ func NewServer(conf ServerConfig) *Server {
 		}
 	}()
 
+	privPemPath := filepath.Join(sourceDir, rootUri, "private_key.pem")
+	_, err = os.Stat(privPemPath)
+	if err != nil {
+		privKey, err := MakeRSAKey()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = SaveRSAKey(privPemPath, privKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+	}
+
+	privKey, err := LoadRSAKey(privPemPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pubKeyId := fmt.Sprintf("https://%s/ap.jsonld#main-key", rootUri)
+
+	apClient := client.New()
+	apClient.SignFn(func(r *http.Request) error {
+		err := sign(privKey, pubKeyId, r)
+		if err != nil {
+			return err
+		}
+
+		//fmt.Println(r.Host, r.URL.Path)
+		//printJson(r.Header)
+		return nil
+	})
+
 	partialProvider := &PartialProvider{}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
 		//printJson(r.URL)
 		//printJson(r.Header)
+		//body, err := io.ReadAll(r.Body)
+		//if err != nil {
+		//	w.WriteHeader(500)
+		//	io.WriteString(w, err.Error())
+		//	return
+		//}
+		//fmt.Println(string(body))
 
 		host := getHost(r)
 
@@ -116,21 +156,74 @@ func NewServer(conf ServerConfig) *Server {
 		}
 	})
 
-	http.HandleFunc("/get-post", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/debug", func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+
+		uri := r.Form.Get("uri")
+
+		httpClient := &http.Client{}
+
+		req, err := http.NewRequest("GET", uri, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		parsedUrl, err := url.Parse(uri)
+		check(err)
+
+		dateHeader := time.Now().UTC().Format(http.TimeFormat)
+
+		printJson(req.Header)
+		req.Header.Set("Accept", "application/activity+json")
+		req.Header.Set("Date", dateHeader)
+		req.Header.Set("Host", parsedUrl.Host)
+		printJson(req.Header)
+
+		err = sign(privKey, pubKeyId, req)
+		check(err)
+
+		printJson(req.Header)
+
+		resp, err := httpClient.Do(req)
+		check(err)
+
+		printJson(req)
+		fmt.Println(resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		check(err)
+		fmt.Println(string(body))
+
+		http.Redirect(w, r, "/entry-editor/", http.StatusSeeOther)
+	})
+
+	http.HandleFunc("/get-object", func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 
 		uri := activitypub.IRI(r.Form.Get("uri"))
 
-		//obj, err := getObject(apClient, uri)
-		err := getTree(apClient, uri, 0)
+		obj, err := getObject(apClient, uri)
 		if err != nil {
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
 			return
 		}
 
-		//fmt.Println("obj")
-		//printJson(obj)
+		printJson(obj)
+
+		http.Redirect(w, r, "/entry-editor/", http.StatusSeeOther)
+	})
+
+	http.HandleFunc("/get-tree", func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+
+		uri := activitypub.IRI(r.Form.Get("uri"))
+
+		err := getTree(apClient, uri, 0)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
 
 		http.Redirect(w, r, "/entry-editor/", http.StatusSeeOther)
 	})
@@ -315,4 +408,10 @@ func getHost(r *http.Request) string {
 	}
 
 	return host
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }
