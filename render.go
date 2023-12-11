@@ -247,6 +247,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	apOutboxUri := fmt.Sprintf("https://%s/outbox.jsonld", rootUri)
 	apOutbox := activitypub.OrderedCollectionNew(activitypub.IRI(apOutboxUri))
 	apOutbox.OrderedItems = outboxItems
+	apOutbox.TotalItems = uint(len(outboxItems))
 
 	outboxJson, err := jsonld.WithContext(
 		jsonld.IRI(activitypub.ActivityBaseURI),
@@ -266,7 +267,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	wf := &WebFingerAccount{
-		Subject: fmt.Sprintf("me12@%s", rootUri),
+		Subject: fmt.Sprintf("me13@%s", rootUri),
 		Links: []*WebFingerLink{
 			&WebFingerLink{
 				Rel:  "self",
