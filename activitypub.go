@@ -78,29 +78,24 @@ func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, er
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("here1")
 
 	obj, err := activitypub.ToObject(item)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("here1.1")
 	allReplies := activitypub.OrderedCollectionNew("fakeid")
 
-	fmt.Println("here1.2")
 	replies, err := activitypub.ToCollection(obj.Replies)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("here1.3")
 	repliesPage, err := activitypub.ToCollectionPage(replies.First)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("here1.4")
 	for _, reply := range repliesPage.Items {
 		iri, err := getIri(apClient, reply)
 		if err != nil {
@@ -145,13 +140,11 @@ func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, er
 		return nil, err
 	}
 
-	fmt.Println("here2")
 	err = os.WriteFile(objCachePath, []byte(objWriteBytes), 0644)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("here3")
 	return obj, nil
 }
 
