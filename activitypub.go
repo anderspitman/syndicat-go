@@ -76,6 +76,7 @@ func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, er
 
 	item, err := apClient.CtxLoadIRI(ctx, uri)
 	if err != nil {
+		fmt.Println("here", err.Error())
 		return nil, err
 	}
 
@@ -84,40 +85,21 @@ func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, er
 		return nil, err
 	}
 
-	allReplies := activitypub.OrderedCollectionNew("fakeid")
+	if obj.Replies != nil {
 
-	replies, err := activitypub.ToCollection(obj.Replies)
-	if err != nil {
-		return nil, err
-	}
+		allReplies := activitypub.OrderedCollectionNew("fakeid")
 
-	repliesPage, err := activitypub.ToCollectionPage(replies.First)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, reply := range repliesPage.Items {
-		iri, err := getIri(apClient, reply)
-		if err != nil {
-			return nil, err
-		}
-		allReplies.OrderedItems = append(allReplies.OrderedItems, iri)
-	}
-
-	next := repliesPage.Next.(activitypub.IRI)
-
-	for {
-		nextPageItem, err := apClient.CtxLoadIRI(ctx, next)
+		replies, err := activitypub.ToCollection(obj.Replies)
 		if err != nil {
 			return nil, err
 		}
 
-		nextPage, err := activitypub.ToCollectionPage(nextPageItem)
+		repliesPage, err := activitypub.ToCollectionPage(replies.First)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, reply := range nextPage.Items {
+		for _, reply := range repliesPage.Items {
 			iri, err := getIri(apClient, reply)
 			if err != nil {
 				return nil, err
@@ -125,15 +107,40 @@ func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, er
 			allReplies.OrderedItems = append(allReplies.OrderedItems, iri)
 		}
 
-		if nextPage.Next != nil {
-			next = nextPage.Next.(activitypub.IRI)
-		} else {
-			break
-		}
-	}
+		next := repliesPage.Next.(activitypub.IRI)
 
-	allReplies.TotalItems = uint(len(allReplies.OrderedItems))
-	obj.Replies = allReplies
+		for {
+			nextPageItem, err := apClient.CtxLoadIRI(ctx, next)
+			if err != nil {
+				fmt.Println(err.Error())
+				break
+				//return nil, err
+			}
+
+			nextPage, err := activitypub.ToCollectionPage(nextPageItem)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, reply := range nextPage.Items {
+				iri, err := getIri(apClient, reply)
+				if err != nil {
+					return nil, err
+				}
+				allReplies.OrderedItems = append(allReplies.OrderedItems, iri)
+			}
+
+			if nextPage.Next != nil {
+				next = nextPage.Next.(activitypub.IRI)
+			} else {
+				break
+			}
+		}
+
+		allReplies.TotalItems = uint(len(allReplies.OrderedItems))
+		obj.Replies = allReplies
+
+	}
 
 	objWriteBytes, err := jsonld.Marshal(obj)
 	if err != nil {
