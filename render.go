@@ -1,7 +1,6 @@
 package syndicat
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"github.com/go-ap/activitypub"
 	"github.com/go-ap/jsonld"
 	"github.com/gorilla/feeds"
-	"github.com/yuin/goldmark"
 )
 
 type WebFingerAccount struct {
@@ -131,11 +129,6 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		var contentHtmlBuf bytes.Buffer
-		if err := goldmark.Convert(entry.Content[0].Value, &contentHtmlBuf); err != nil {
-			return err
-		}
-
 		entryRenderDir := fmt.Sprintf("%s/%d", serveDir, entryId)
 		entryHtmlPath := filepath.Join(entryRenderDir, "index.html")
 
@@ -144,7 +137,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		contentHtml := string(contentHtmlBuf.Bytes())
+		contentHtml := string(entry.Content[0].Value)
 
 		tmplData := struct {
 			Entry       *activitypub.Object
@@ -278,7 +271,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	wf := &WebFingerAccount{
-		Subject: fmt.Sprintf("me13@%s", rootUri),
+		Subject: fmt.Sprintf("me14@%s", rootUri),
 		Links: []*WebFingerLink{
 			&WebFingerLink{
 				Rel:  "self",
@@ -308,11 +301,12 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	actorId := activitypub.IRI(fmt.Sprintf("https://%s/ap.jsonld", rootUri))
 	pubKeyId := actorId + "#main-key"
 	apActor := &activitypub.Actor{
-		ID:     actorId,
-		URL:    activitypub.IRI(fmt.Sprintf("https://%s", rootUri)),
-		Type:   "Person",
-		Inbox:  activitypub.IRI(fmt.Sprintf("https://%s/inbox", rootUri)),
-		Outbox: activitypub.IRI(fmt.Sprintf("https://%s/outbox.jsonld", rootUri)),
+		ID:        actorId,
+		URL:       activitypub.IRI(fmt.Sprintf("https://%s", rootUri)),
+		Type:      "Person",
+		Inbox:     activitypub.IRI(fmt.Sprintf("https://%s/inbox", rootUri)),
+		Outbox:    activitypub.IRI(fmt.Sprintf("https://%s/outbox.jsonld", rootUri)),
+		Followers: activitypub.IRI(fmt.Sprintf("https://%s/followers.jsonld", rootUri)),
 		PreferredUsername: activitypub.NaturalLanguageValues{
 			activitypub.LangRefValue{
 				Value: []byte("me"),
@@ -343,6 +337,25 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	err = os.WriteFile(apProfilePath, apProfileBytes, 0644)
 	if err != nil {
 		return err
+	}
+
+	followersPath := filepath.Join(serveDir, "followers.jsonld")
+
+	followersId := activitypub.IRI(fmt.Sprintf("https://%s/followers.jsonld", rootUri))
+	followersBytes, err := os.ReadFile(followersPath)
+	if err != nil {
+		followers := activitypub.OrderedCollectionNew(followersId)
+		followersBytes, err = jsonld.WithContext(
+			jsonld.IRI(activitypub.ActivityBaseURI),
+		).Marshal(followers)
+		if err != nil {
+			return err
+		}
+
+		err = os.WriteFile(followersPath, followersBytes, 0644)
+		if err != nil {
+			return err
+		}
 	}
 
 	templateData := struct {

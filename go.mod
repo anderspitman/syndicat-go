@@ -3,6 +3,7 @@ module github.com/anderspitman/syndicat-go
 go 1.21.3
 
 require (
+	github.com/alecthomas/chroma/v2 v2.12.0
 	github.com/anderspitman/treemess-go v0.0.0-20210313015619-ba255d9f1e0f
 	github.com/cbroglie/mustache v1.4.0
 	github.com/gemdrive/gemdrive-go v0.0.0-20231127205839-b075940da417
@@ -20,6 +21,7 @@ require (
 	git.sr.ht/~mariusor/lw v0.0.0-20230317075520-07e173563bf8 // indirect
 	github.com/caddyserver/certmagic v0.15.3 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
+	github.com/dlclark/regexp2 v1.10.0 // indirect
 	github.com/go-ap/errors v0.0.0-20231003111023-183eef4b31b7 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect

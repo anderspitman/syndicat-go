@@ -1,12 +1,14 @@
 package syndicat
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -74,20 +76,27 @@ func GetPublicKeyPem(privKey *rsa.PrivateKey) (string, error) {
 }
 
 func sign(privateKey crypto.PrivateKey, pubKeyId string, r *http.Request) error {
-	//prefs := []httpsig.Algorithm{httpsig.RSA_SHA512, httpsig.RSA_SHA256}
+
 	prefs := []httpsig.Algorithm{httpsig.RSA_SHA256}
 	digestAlgorithm := httpsig.DigestSha256
-	// The "Date" and "Digest" headers must already be set on r, as well as r.URL.
-	//headersToSign := []string{httpsig.RequestTarget, "date", "digest"}
 	headersToSign := []string{httpsig.RequestTarget, "date", "host"}
-	var sigExpirationSeconds int64 = 3600
-	signer, _, err := httpsig.NewSigner(prefs, digestAlgorithm, headersToSign, httpsig.Signature, sigExpirationSeconds)
+
+	var body []byte
+	if r.Body != nil {
+		bodyBuf := bytes.Buffer{}
+		if _, err := io.Copy(&bodyBuf, r.Body); err == nil {
+			r.Body = io.NopCloser(&bodyBuf)
+		}
+		headersToSign = append(headersToSign, "digest")
+		body = bodyBuf.Bytes()
+	}
+
+	var sigExpSec int64 = 3600
+
+	signer, _, err := httpsig.NewSigner(prefs, digestAlgorithm, headersToSign, httpsig.Signature, sigExpSec)
 	if err != nil {
 		return err
 	}
-	// To sign the digest, we need to give the signer a copy of the body...
-	// ...but it is optional, no digest will be signed if given "nil"
-	//body := []byte("Hi there")
-	// If r were a http.ResponseWriter, call SignResponse instead.
-	return signer.SignRequest(privateKey, pubKeyId, r, nil)
+
+	return signer.SignRequest(privateKey, pubKeyId, r, body)
 }

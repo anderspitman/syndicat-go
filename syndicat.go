@@ -1,6 +1,8 @@
 package syndicat
 
 import (
+	"bytes"
+	"crypto/rsa"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -13,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/anderspitman/treemess-go"
 	"github.com/cbroglie/mustache"
 	"github.com/gemdrive/gemdrive-go"
@@ -20,6 +23,7 @@ import (
 	"github.com/go-ap/client"
 	"github.com/go-ap/jsonld"
 	"github.com/lastlogin-io/obligator"
+	"github.com/yuin/goldmark"
 )
 
 type ServerConfig struct {
@@ -121,6 +125,8 @@ func NewServer(conf ServerConfig) *Server {
 		return nil
 	})
 
+	httpClient := &http.Client{}
+
 	partialProvider := &PartialProvider{}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -160,8 +166,6 @@ func NewServer(conf ServerConfig) *Server {
 		r.ParseForm()
 
 		uri := r.Form.Get("uri")
-
-		httpClient := &http.Client{}
 
 		req, err := http.NewRequest("GET", uri, nil)
 		if err != nil {
@@ -228,6 +232,89 @@ func NewServer(conf ServerConfig) *Server {
 		http.Redirect(w, r, "/entry-editor/", http.StatusSeeOther)
 	})
 
+	http.HandleFunc("/inbox", func(w http.ResponseWriter, r *http.Request) {
+		host := getHost(r)
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		fmt.Println(string(body))
+		var act *activitypub.Activity
+		err = json.Unmarshal(body, &act)
+		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		//var obj *activitypub.Object
+		//err = json.NewDecoder(r.Body).Decode(&obj)
+		//if err != nil {
+		//	w.WriteHeader(500)
+		//	io.WriteString(w, err.Error())
+		//	return
+		//}
+
+		fmt.Println("/inbox")
+		printJson(act)
+
+		switch act.Type {
+		case activitypub.FollowType:
+			followersPath := filepath.Join(serveDir, host, "followers.jsonld")
+
+			followersBytes, err := os.ReadFile(followersPath)
+			if err != nil {
+				w.WriteHeader(500)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			var followers *activitypub.OrderedCollection
+			err = json.Unmarshal(followersBytes, &followers)
+			if err != nil {
+				w.WriteHeader(500)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			newFollower := act.Actor
+
+			for _, follower := range followers.OrderedItems {
+				if newFollower == follower {
+					// already exists, noop
+					return
+				}
+			}
+
+			followers.OrderedItems = append(followers.OrderedItems, newFollower)
+			followers.TotalItems = followers.TotalItems + 1
+
+			followersBytes, err = jsonld.WithContext(
+				jsonld.IRI(activitypub.ActivityBaseURI),
+			).Marshal(followers)
+			if err != nil {
+				fmt.Println(err.Error())
+				w.WriteHeader(500)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			fmt.Println(string(followersBytes))
+
+			err = os.WriteFile(followersPath, followersBytes, 0644)
+			if err != nil {
+				fmt.Println(err.Error())
+				w.WriteHeader(500)
+				io.WriteString(w, err.Error())
+				return
+			}
+		}
+	})
+
 	http.HandleFunc("/entry-submit", func(w http.ResponseWriter, r *http.Request) {
 
 		r.ParseForm()
@@ -283,12 +370,24 @@ func NewServer(conf ServerConfig) *Server {
 		entryUri := fmt.Sprintf("https://%s/%d/", host, entryId)
 		entryJsonUri := fmt.Sprintf("%sentry.jsonld", entryUri)
 
+		var contentHtmlBuf bytes.Buffer
+		if err := goldmark.Convert([]byte(entryText), &contentHtmlBuf); err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
 		htmlLink := activitypub.LinkNew("", activitypub.LinkType)
 		htmlLink.Href = activitypub.IRI(entryUri)
 		htmlLink.MediaType = "text/html"
 
 		to := activitypub.ItemCollection{
 			activitypub.IRI("https://www.w3.org/ns/activitystreams#Public"),
+		}
+
+		followersId := activitypub.IRI(fmt.Sprintf("https://%s/followers.jsonld", host))
+		cc := activitypub.ItemCollection{
+			activitypub.IRI(followersId),
 		}
 
 		feedItem := &activitypub.Object{
@@ -302,14 +401,23 @@ func NewServer(conf ServerConfig) *Server {
 			AttributedTo: activitypub.IRI(host),
 			Content: activitypub.NaturalLanguageValues{
 				activitypub.LangRefValue{
-					Value: []byte(entryText),
+					Value: contentHtmlBuf.Bytes(),
 				},
+			},
+			Source: activitypub.Source{
+				Content: activitypub.NaturalLanguageValues{
+					activitypub.LangRefValue{
+						Value: []byte(entryText),
+					},
+				},
+				MediaType: "text/markdown",
 			},
 			Published: timestamp,
 			Updated:   timestamp,
 			InReplyTo: activitypub.IRI(parentUri),
 			URL:       htmlLink,
 			To:        to,
+			CC:        cc,
 		}
 
 		jsonEntry, err := jsonld.WithContext(
@@ -344,6 +452,9 @@ func NewServer(conf ServerConfig) *Server {
 			return
 		}
 
+		fmt.Println("entry-submit")
+		printJson(activity)
+
 		err = os.WriteFile(activityPath, activityJsonBytes, 0644)
 		if err != nil {
 			w.WriteHeader(500)
@@ -353,6 +464,14 @@ func NewServer(conf ServerConfig) *Server {
 
 		err = render(rootUri, sourceDir, serveDir, partialProvider)
 		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		err = sendActivity(httpClient, privKey, pubKeyId, activity, "https://mastodon.social/inbox")
+		if err != nil {
+			fmt.Println(err.Error())
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
 			return
@@ -391,7 +510,11 @@ func renderTemplate(tmplPath string, templateData interface{}, partialProvider *
 
 func printJson(data interface{}) {
 	d, _ := json.MarshalIndent(data, "", "  ")
-	fmt.Println(string(d))
+	//fmt.Println(string(d))
+	err := quick.Highlight(os.Stdout, string(d)+"\n", "json", "terminal256", "monokai")
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }
 
 func printJsonLd(data interface{}) {
@@ -414,4 +537,47 @@ func check(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func sendActivity(httpClient *http.Client, privKey *rsa.PrivateKey, pubKeyId string, activity *activitypub.Activity, uri string) error {
+
+	fmt.Println("sendActivity")
+	printJson(activity)
+
+	activityJsonBytes, err := jsonld.WithContext(
+		jsonld.IRI(activitypub.ActivityBaseURI),
+	).Marshal(activity)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", uri, bytes.NewReader(activityJsonBytes))
+	if err != nil {
+		return err
+	}
+
+	parsedUrl, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+
+	dateHeader := time.Now().UTC().Format(http.TimeFormat)
+
+	req.Header.Set("Accept", "application/activity+json")
+	req.Header.Set("Date", dateHeader)
+	req.Header.Set("Host", parsedUrl.Host)
+
+	err = sign(privKey, pubKeyId, req)
+	if err != nil {
+		return err
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(resp.StatusCode)
+
+	return nil
 }
