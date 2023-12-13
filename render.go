@@ -24,14 +24,6 @@ type WebFingerLink struct {
 	Href string `json:"href"`
 }
 
-type ActivityPubActor struct {
-	Context []string `json:"@context"`
-	Id      string   `json:"id"`
-	Type    string   `json:"type"`
-	Inbox   string   `json:"inbox"`
-	Outbox  string   `json:"outbox"`
-}
-
 func render(rootUri, sourceDir, serveDir string, partialProvider *PartialProvider) error {
 
 	err := os.MkdirAll(sourceDir, 0755)
@@ -271,7 +263,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	wf := &WebFingerAccount{
-		Subject: fmt.Sprintf("me16@%s", rootUri),
+		Subject: fmt.Sprintf("me17@%s", rootUri),
 		Links: []*WebFingerLink{
 			&WebFingerLink{
 				Rel:  "self",
@@ -301,8 +293,13 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	actorId := activitypub.IRI(fmt.Sprintf("https://%s/ap.jsonld", rootUri))
 	pubKeyId := actorId + "#main-key"
 	apActor := &activitypub.Actor{
-		ID:        actorId,
-		URL:       activitypub.IRI(fmt.Sprintf("https://%s", rootUri)),
+		ID:  actorId,
+		URL: activitypub.IRI(fmt.Sprintf("https://%s", rootUri)),
+		Icon: activitypub.Image{
+			Type:      activitypub.ImageType,
+			MediaType: "image/jpeg",
+			URL:       activitypub.IRI(fmt.Sprintf("https://%s/portrait.jpg", rootUri)),
+		},
 		Type:      "Person",
 		Inbox:     activitypub.IRI(fmt.Sprintf("https://%s/inbox", rootUri)),
 		Outbox:    activitypub.IRI(fmt.Sprintf("https://%s/outbox.jsonld", rootUri)),
