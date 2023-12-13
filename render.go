@@ -271,7 +271,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 	}
 
 	wf := &WebFingerAccount{
-		Subject: fmt.Sprintf("me14@%s", rootUri),
+		Subject: fmt.Sprintf("me16@%s", rootUri),
 		Links: []*WebFingerLink{
 			&WebFingerLink{
 				Rel:  "self",

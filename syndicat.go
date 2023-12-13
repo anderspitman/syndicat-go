@@ -281,9 +281,12 @@ func NewServer(conf ServerConfig) *Server {
 				return
 			}
 
-			newFollower := act.Actor
+			// TODO: using GetID() because it was panicking with a weird error when type asserting
+			// act.Actor.(activitypub.IRI)
+			newFollower := act.Actor.GetID()
 
-			for _, follower := range followers.OrderedItems {
+			for _, f := range followers.OrderedItems {
+				follower := f.(activitypub.IRI)
 				if newFollower == follower {
 					// already exists, noop
 					return
@@ -303,9 +306,20 @@ func NewServer(conf ServerConfig) *Server {
 				return
 			}
 
-			fmt.Println(string(followersBytes))
-
 			err = os.WriteFile(followersPath, followersBytes, 0644)
+			if err != nil {
+				fmt.Println(err.Error())
+				w.WriteHeader(500)
+				io.WriteString(w, err.Error())
+				return
+			}
+
+			accept := &activitypub.Accept{
+				Type:   activitypub.AcceptType,
+				Object: act,
+			}
+
+			err = sendActivity(httpClient, privKey, pubKeyId, accept, "https://mastodon.social/inbox")
 			if err != nil {
 				fmt.Println(err.Error())
 				w.WriteHeader(500)
@@ -441,6 +455,7 @@ func NewServer(conf ServerConfig) *Server {
 		activity := activitypub.ActivityNew(activityId, activitypub.CreateType, feedItem)
 		activity.Actor = activitypub.IRI(fmt.Sprintf("https://%s/ap.jsonld", rootUri))
 		activity.To = to
+		activity.CC = cc
 		activity.Published = feedItem.Published
 
 		activityJsonBytes, err := jsonld.WithContext(
@@ -451,9 +466,6 @@ func NewServer(conf ServerConfig) *Server {
 			io.WriteString(w, err.Error())
 			return
 		}
-
-		fmt.Println("entry-submit")
-		printJson(activity)
 
 		err = os.WriteFile(activityPath, activityJsonBytes, 0644)
 		if err != nil {
