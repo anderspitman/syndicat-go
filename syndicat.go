@@ -2,7 +2,6 @@ package syndicat
 
 import (
 	"bytes"
-	"crypto/rsa"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -549,47 +548,4 @@ func check(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-func sendActivity(httpClient *http.Client, privKey *rsa.PrivateKey, pubKeyId string, activity *activitypub.Activity, uri string) error {
-
-	fmt.Println("sendActivity")
-	printJson(activity)
-
-	activityJsonBytes, err := jsonld.WithContext(
-		jsonld.IRI(activitypub.ActivityBaseURI),
-	).Marshal(activity)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", uri, bytes.NewReader(activityJsonBytes))
-	if err != nil {
-		return err
-	}
-
-	parsedUrl, err := url.Parse(uri)
-	if err != nil {
-		return err
-	}
-
-	dateHeader := time.Now().UTC().Format(http.TimeFormat)
-
-	req.Header.Set("Accept", "application/activity+json")
-	req.Header.Set("Date", dateHeader)
-	req.Header.Set("Host", parsedUrl.Host)
-
-	err = sign(privKey, pubKeyId, req)
-	if err != nil {
-		return err
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(resp.StatusCode)
-
-	return nil
 }
