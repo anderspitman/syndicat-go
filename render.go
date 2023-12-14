@@ -42,6 +42,9 @@ func render(rootUri, sourceDir, serveDir string, partialProvider *PartialProvide
 	}
 
 	for _, userDirEntry := range dirItems {
+		if !userDirEntry.IsDir() {
+			continue
+		}
 		domainName := userDirEntry.Name()
 		userRootUri := domainName
 		userSourceDir := filepath.Join(sourceDir, domainName)

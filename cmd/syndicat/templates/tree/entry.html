@@ -1,0 +1,16 @@
+<div class='entry'>
+  <div>
+    <a href='{{Id}}'>{{Id}}</a>
+  </div>
+  <div>
+    {{{Content}}}
+  </div>
+</div>
+
+<ul>
+ {{#Replies}}
+ <li>
+   {{> tree/entry.html}}
+ </li>
+ {{/Replies}}
+</ul>

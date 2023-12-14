@@ -16,33 +16,88 @@ import (
 	"github.com/go-ap/jsonld"
 )
 
-func getTree(apClient *client.C, uri activitypub.IRI, depth int) error {
+type ActivityPubObject struct {
+	Id      string               `json:"id"`
+	Content string               `json:"content"`
+	Replies []*ActivityPubObject `json:"replies"`
+}
 
-	for i := 0; i < depth; i++ {
-		fmt.Print("    ")
+func convertApObject(from *activitypub.Object) (*ActivityPubObject, error) {
+	to := &ActivityPubObject{
+		Id:      string(from.ID),
+		Content: string(from.Content[0].Value),
+		Replies: []*ActivityPubObject{},
 	}
 
-	fmt.Println(uri, depth)
+	if from.Replies != nil {
+		replies, err := activitypub.ToOrderedCollection(from.Replies)
+		if err != nil {
+			return nil, err
+		}
+
+		//nestedReplyItems := activitypub.ItemCollection{}
+
+		for _, reply := range replies.OrderedItems {
+
+			child, err := activitypub.ToObject(reply)
+			if err != nil {
+				return nil, err
+			}
+
+			childTo, err := convertApObject(child)
+			if err != nil {
+				return nil, err
+			}
+
+			to.Replies = append(to.Replies, childTo)
+		}
+	}
+
+	return to, nil
+}
+
+func getTree(apClient *client.C, uri activitypub.IRI, depth int) (*activitypub.Object, error) {
+
+	//for i := 0; i < depth; i++ {
+	//	fmt.Print("    ")
+	//}
+
+	//fmt.Println(uri, depth)
 
 	obj, err := getObject(apClient, uri)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	replies, err := activitypub.ToOrderedCollection(obj.Replies)
-	if err != nil {
-		return err
-	}
+	if obj.Replies != nil {
 
-	for _, reply := range replies.OrderedItems {
-		iri, err := getIri(apClient, reply)
+		replies, err := activitypub.ToOrderedCollection(obj.Replies)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		err = getTree(apClient, iri, depth+1)
+
+		nestedReplyItems := activitypub.ItemCollection{}
+
+		for _, reply := range replies.OrderedItems {
+			iri, err := getIri(apClient, reply)
+			if err != nil {
+				return nil, err
+			}
+			child, err := getTree(apClient, iri, depth+1)
+			if err != nil {
+				return nil, err
+			}
+
+			nestedReplyItems = append(nestedReplyItems, child)
+		}
+
+		obj.Replies = &activitypub.OrderedCollection{
+			TotalItems:   uint(len(nestedReplyItems)),
+			OrderedItems: nestedReplyItems,
+		}
 	}
 
-	return nil
+	return obj, nil
 }
 
 func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, error) {
@@ -74,7 +129,7 @@ func getObject(apClient *client.C, uri activitypub.IRI) (*activitypub.Object, er
 		return cachedObj, nil
 	}
 
-	fmt.Println("not cached", uri)
+	//fmt.Println("not cached", uri)
 
 	ctx := context.Background()
 

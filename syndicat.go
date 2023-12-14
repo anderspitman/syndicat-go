@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	iofs "io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -26,7 +27,8 @@ import (
 )
 
 type ServerConfig struct {
-	RootUri string
+	RootUri      string
+	TemplatesDir string
 }
 
 type Server struct{}
@@ -35,11 +37,18 @@ type Server struct{}
 var fs embed.FS
 
 type PartialProvider struct {
+	fs iofs.ReadFileFS
+}
+
+func NewPartialProvider(fs iofs.ReadFileFS) *PartialProvider {
+	return &PartialProvider{
+		fs: fs,
+	}
 }
 
 func (p *PartialProvider) Get(tmplPath string) (string, error) {
 
-	tmplBytes, err := fs.ReadFile(tmplPath)
+	tmplBytes, err := p.fs.ReadFile(tmplPath)
 	if err != nil {
 		return "", err
 	}
@@ -51,6 +60,10 @@ func NewServer(conf ServerConfig) *Server {
 
 	rootUri := conf.RootUri
 	authUri := "auth." + rootUri
+	fsDir := "files"
+	sourceDir := fsDir
+	serveDir := fsDir
+	userServeDir := filepath.Join(serveDir, rootUri)
 
 	authConfig := obligator.ServerConfig{
 		RootUri: "https://" + authUri,
@@ -58,9 +71,6 @@ func NewServer(conf ServerConfig) *Server {
 
 	authServer := obligator.NewServer(authConfig)
 
-	fsDir := "files"
-	sourceDir := fsDir
-	serveDir := fsDir
 	//sourceDir := filepath.Join(fsDir, "source")
 	//serveDir := filepath.Join(fsDir, "serve")
 
@@ -124,9 +134,60 @@ func NewServer(conf ServerConfig) *Server {
 		return nil
 	})
 
+	treeAp, err := getTree(apClient, "https://social.jvns.ca/@b0rk/111535257038802048", 0)
+	check(err)
+
+	tree, err := convertApObject(treeAp)
+	check(err)
+
+	if conf.TemplatesDir != "" {
+
+		dirFsTmp := os.DirFS(conf.TemplatesDir)
+
+		dirFs, ok := dirFsTmp.(iofs.ReadFileFS)
+		if !ok {
+			fmt.Fprintln(os.Stderr, "Failed to assert dirFs")
+			os.Exit(1)
+		}
+
+		partialProvider := NewPartialProvider(dirFs)
+
+		err := iofs.WalkDir(dirFs, ".", func(path string, d iofs.DirEntry, err error) error {
+
+			check(err)
+
+			if d.Name() == "index.html" {
+				srcPath := filepath.Join(conf.TemplatesDir, path)
+				outPath := filepath.Join(userServeDir, path)
+
+				// TODO: change to dirFs.ReadFile
+				tmplBytes, err := os.ReadFile(srcPath)
+				check(err)
+
+				//templateData := struct {
+				//	Tree *ActivityPubObject
+				//}{
+				//	Tree: tree,
+				//}
+
+				tmplText, err := mustache.RenderPartials(string(tmplBytes), partialProvider, tree)
+				check(err)
+
+				err = os.MkdirAll(filepath.Dir(outPath), 0755)
+				check(err)
+
+				err = os.WriteFile(outPath, []byte(tmplText), 0644)
+				check(err)
+			}
+
+			return nil
+		})
+		check(err)
+	}
+
 	httpClient := &http.Client{}
 
-	partialProvider := &PartialProvider{}
+	partialProvider := NewPartialProvider(fs)
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
@@ -221,8 +282,28 @@ func NewServer(conf ServerConfig) *Server {
 
 		uri := activitypub.IRI(r.Form.Get("uri"))
 
-		err := getTree(apClient, uri, 0)
+		tree, err := getTree(apClient, uri, 0)
 		if err != nil {
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		printJson(tree)
+
+		followersBytes, err := jsonld.WithContext(
+			jsonld.IRI(activitypub.ActivityBaseURI),
+		).Marshal(tree)
+		if err != nil {
+			fmt.Println(err.Error())
+			w.WriteHeader(500)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		err = os.WriteFile("debug.json", followersBytes, 0644)
+		if err != nil {
+			fmt.Println(err.Error())
 			w.WriteHeader(500)
 			io.WriteString(w, err.Error())
 			return
