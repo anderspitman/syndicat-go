@@ -11,8 +11,6 @@
 body {
   font-family: Arial;
   font-size: 1.2em;
-  display: flex;
-  justify-content: center;
   margin: 0px;
   /* Without this text in buttons is white-on-white on iOS Safari. No idea what
    * the root cause is. Seems to only affect more recent versions of iOS. Found
@@ -21,8 +19,9 @@ body {
 }
 
 .content {
+  margin: 0 auto;
   position: relative;
-  max-width: 480px;
+  max-width: 640px;
   width: 100%;
   padding: 32px;
 }

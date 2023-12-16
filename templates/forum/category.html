@@ -1,0 +1,19 @@
+{{> templates/header.html}}
+
+<main class='content'>
+
+  {{> templates/navbar.html}}
+
+  <h1>{{Entry.Name}}</h1>
+  
+  <ul>
+    {{#Replies}}
+    <li>
+      <a href='{{HtmlUri}}'>{{Name}}</a>
+    </li>
+    {{/Replies}}
+  </ul>
+
+</main>
+
+{{> templates/footer.html}}

@@ -3,11 +3,14 @@ package syndicat
 import (
 	"encoding/json"
 	"fmt"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/cbroglie/mustache"
 	"github.com/go-ap/activitypub"
 	"github.com/go-ap/jsonld"
 	"github.com/gorilla/feeds"
@@ -24,14 +27,34 @@ type WebFingerLink struct {
 	Href string `json:"href"`
 }
 
+type PartialProvider struct {
+	fs iofs.ReadFileFS
+}
+
+func NewPartialProvider(fs iofs.ReadFileFS) *PartialProvider {
+	return &PartialProvider{
+		fs: fs,
+	}
+}
+
+func (p *PartialProvider) Get(tmplPath string) (string, error) {
+
+	tmplBytes, err := p.fs.ReadFile(tmplPath)
+	if err != nil {
+		return "", err
+	}
+
+	return string(tmplBytes), nil
+}
+
 func render(rootUri, sourceDir, serveDir string, partialProvider *PartialProvider) error {
 
-	err := os.MkdirAll(sourceDir, 0755)
+	err := ensureDir(sourceDir)
 	if err != nil {
 		return err
 	}
 
-	err = os.MkdirAll(serveDir, 0755)
+	err = ensureDir(serveDir)
 	if err != nil {
 		return err
 	}
@@ -134,12 +157,17 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 
 		contentHtml := string(entry.Content.First().Value)
 
+		renderEntry, err := convertApObject(entry)
+		if err != nil {
+			return err
+		}
+
 		tmplData := struct {
-			Entry       *activitypub.Object
+			Entry       *ActivityPubObject
 			ContentHtml string
 			LoggedIn    bool
 		}{
-			Entry:       entry,
+			Entry:       renderEntry,
 			ContentHtml: contentHtml,
 			LoggedIn:    true,
 		}
@@ -396,6 +424,22 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		return err
 	}
 
+	allEntries, err := getAllEntries(entriesDir)
+	if err != nil {
+		return err
+	}
+
+	forumDir := filepath.Join(sourceDir, "forum")
+	err = renderForum(forumDir, allEntries, partialProvider)
+	if err != nil {
+		return err
+	}
+
+	err = renderBlog(feedItems, serveDir, partialProvider)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -422,4 +466,97 @@ func renderBlog(feedItems []*feeds.Item, serveDir string, partialProvider *Parti
 	}
 
 	return nil
+}
+
+func renderForum(dstDir string, allEntries []*activitypub.Object, partialProvider *PartialProvider) error {
+
+	ensureDir(dstDir)
+
+	forumEntries := filterRootEntries(allEntries)
+
+	renderEntries, err := convertApObjects(forumEntries)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range renderEntries {
+
+		entry.UriName = strings.Replace(strings.ToLower(entry.Name), ".", "-", -1)
+
+		replies := []*activitypub.Object{}
+
+		// TODO: this can be more efficient by making a map of categories and looping through once
+		for _, maybeReply := range allEntries {
+			if maybeReply.InReplyTo != nil {
+				inReplyToUri := string(maybeReply.InReplyTo.(activitypub.IRI))
+
+				fmt.Println(inReplyToUri, entry.Id)
+				if inReplyToUri == entry.Id {
+					replies = append(replies, maybeReply)
+				}
+			}
+		}
+
+		renderReplies, err := convertApObjects(replies)
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("replies")
+		printJson(replies)
+		fmt.Println("render replies")
+		printJson(renderReplies)
+
+		tmplData := struct {
+			Entry   *ActivityPubObject
+			Replies []*ActivityPubObject
+		}{
+			Entry:   entry,
+			Replies: renderReplies,
+		}
+
+		dstPath := filepath.Join(dstDir, "c", entry.UriName, "index.html")
+		err = renderTemplateToFile("templates/forum/category.html", dstPath, tmplData, partialProvider)
+		if err != nil {
+			return err
+		}
+	}
+
+	tmplData := struct {
+		Entries []*ActivityPubObject
+	}{
+		Entries: renderEntries,
+	}
+
+	dstPath := filepath.Join(dstDir, "index.html")
+	err = renderTemplateToFile("templates/forum/index.html", dstPath, tmplData, partialProvider)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func renderTemplate(tmplPath string, templateData interface{}, partialProvider *PartialProvider) (string, error) {
+
+	tmplBytes, err := fs.ReadFile(tmplPath)
+	if err != nil {
+		return "", err
+	}
+
+	tmplText, err := mustache.RenderPartials(string(tmplBytes), partialProvider, templateData)
+	if err != nil {
+		return "", err
+	}
+
+	return tmplText, nil
+}
+
+func renderTemplateToFile(tmplPath, dstPath string, templateData interface{}, partialProvider *PartialProvider) error {
+	str, err := renderTemplate(tmplPath, templateData, partialProvider)
+	if err != nil {
+		return err
+	}
+
+	return ensureDirWriteFile(dstPath, []byte(str))
 }

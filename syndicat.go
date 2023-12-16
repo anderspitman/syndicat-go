@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	iofs "io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,7 +15,6 @@ import (
 	"time"
 
 	"github.com/anderspitman/treemess-go"
-	"github.com/cbroglie/mustache"
 	"github.com/gemdrive/gemdrive-go"
 	"github.com/go-ap/activitypub"
 	"github.com/go-ap/client"
@@ -35,26 +33,6 @@ type Server struct{}
 //go:embed templates
 var fs embed.FS
 
-type PartialProvider struct {
-	fs iofs.ReadFileFS
-}
-
-func NewPartialProvider(fs iofs.ReadFileFS) *PartialProvider {
-	return &PartialProvider{
-		fs: fs,
-	}
-}
-
-func (p *PartialProvider) Get(tmplPath string) (string, error) {
-
-	tmplBytes, err := p.fs.ReadFile(tmplPath)
-	if err != nil {
-		return "", err
-	}
-
-	return string(tmplBytes), nil
-}
-
 func NewServer(conf ServerConfig) *Server {
 
 	rootUri := conf.RootUri
@@ -62,8 +40,8 @@ func NewServer(conf ServerConfig) *Server {
 	fsDir := "files"
 	sourceDir := fsDir
 	serveDir := fsDir
-	userSourceDir := filepath.Join(serveDir, rootUri)
-	userServeDir := userSourceDir
+	//userSourceDir := filepath.Join(serveDir, rootUri)
+	//userServeDir := userSourceDir
 
 	authConfig := obligator.ServerConfig{
 		RootUri: "https://" + authUri,
@@ -134,11 +112,11 @@ func NewServer(conf ServerConfig) *Server {
 		return nil
 	})
 
-	rootEntries, err := getRootEntries(userSourceDir)
-	check(err)
+	//rootEntries, err := getRootEntries(userSourceDir)
+	//check(err)
 
-	entries, err := convertApObjects(rootEntries)
-	check(err)
+	//entries, err := convertApObjects(rootEntries)
+	//check(err)
 
 	//treeAp, err := getTree(apClient, "https://social.jvns.ca/@b0rk/111535257038802048", 0)
 	//check(err)
@@ -147,49 +125,49 @@ func NewServer(conf ServerConfig) *Server {
 	//check(err)
 
 	// TODO: I think this needs to be moved into the render function
-	if conf.TemplatesDir != "" {
+	//if conf.TemplatesDir != "" {
 
-		dirFsTmp := os.DirFS(conf.TemplatesDir)
+	//	dirFsTmp := os.DirFS(conf.TemplatesDir)
 
-		dirFs, ok := dirFsTmp.(iofs.ReadFileFS)
-		if !ok {
-			fmt.Fprintln(os.Stderr, "Failed to assert dirFs")
-			os.Exit(1)
-		}
+	//	dirFs, ok := dirFsTmp.(iofs.ReadFileFS)
+	//	if !ok {
+	//		fmt.Fprintln(os.Stderr, "Failed to assert dirFs")
+	//		os.Exit(1)
+	//	}
 
-		partialProvider := NewPartialProvider(dirFs)
+	//	partialProvider := NewPartialProvider(dirFs)
 
-		err := iofs.WalkDir(dirFs, ".", func(path string, d iofs.DirEntry, err error) error {
+	//	err := iofs.WalkDir(dirFs, ".", func(path string, d iofs.DirEntry, err error) error {
 
-			check(err)
+	//		check(err)
 
-			if d.Name() == "index.html" {
-				srcPath := filepath.Join(path)
-				outPath := filepath.Join(userServeDir, path)
+	//		if d.Name() == "index.html" {
+	//			srcPath := filepath.Join(path)
+	//			outPath := filepath.Join(userServeDir, path)
 
-				tmplBytes, err := dirFs.ReadFile(srcPath)
-				check(err)
+	//			tmplBytes, err := dirFs.ReadFile(srcPath)
+	//			check(err)
 
-				templateData := struct {
-					Entries []*ActivityPubObject
-				}{
-					Entries: entries,
-				}
+	//			templateData := struct {
+	//				Entries []*ActivityPubObject
+	//			}{
+	//				Entries: entries,
+	//			}
 
-				tmplText, err := mustache.RenderPartials(string(tmplBytes), partialProvider, templateData)
-				check(err)
+	//			tmplText, err := mustache.RenderPartials(string(tmplBytes), partialProvider, templateData)
+	//			check(err)
 
-				err = os.MkdirAll(filepath.Dir(outPath), 0755)
-				check(err)
+	//			err = os.MkdirAll(filepath.Dir(outPath), 0755)
+	//			check(err)
 
-				err = os.WriteFile(outPath, []byte(tmplText), 0644)
-				check(err)
-			}
+	//			err = os.WriteFile(outPath, []byte(tmplText), 0644)
+	//			check(err)
+	//		}
 
-			return nil
-		})
-		check(err)
-	}
+	//		return nil
+	//	})
+	//	check(err)
+	//}
 
 	httpClient := &http.Client{}
 
@@ -589,19 +567,4 @@ func NewServer(conf ServerConfig) *Server {
 
 	s := &Server{}
 	return s
-}
-
-func renderTemplate(tmplPath string, templateData interface{}, partialProvider *PartialProvider) (string, error) {
-
-	tmplBytes, err := fs.ReadFile(tmplPath)
-	if err != nil {
-		return "", err
-	}
-
-	tmplText, err := mustache.RenderPartials(string(tmplBytes), partialProvider, templateData)
-	if err != nil {
-		return "", err
-	}
-
-	return tmplText, nil
 }

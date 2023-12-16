@@ -12,6 +12,10 @@ import (
 	"github.com/go-ap/jsonld"
 )
 
+func ensureDir(dirPath string) error {
+	return os.MkdirAll(dirPath, 0755)
+}
+
 func writeFile(filePath string, data []byte) error {
 	err := os.WriteFile(filePath, data, 0644)
 	if err != nil {
@@ -22,7 +26,7 @@ func writeFile(filePath string, data []byte) error {
 }
 
 func ensureDirWriteFile(filePath string, data []byte) error {
-	err := os.MkdirAll(filepath.Dir(filePath), 0755)
+	err := ensureDir(filepath.Dir(filePath))
 	if err != nil {
 		return err
 	}

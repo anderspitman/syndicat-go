@@ -1,0 +1,19 @@
+{{> templates/header.html}}
+
+<main class='content'>
+
+  {{> templates/navbar.html}}
+
+  <h1>Categories</h1>
+  
+  <ul>
+    {{#Entries}}
+    <li>
+      <a href='./c/{{UriName}}/'>{{Name}}</a>
+    </li>
+    {{/Entries}}
+  </ul>
+
+</main>
+
+{{> templates/footer.html}}

@@ -19,11 +19,13 @@ import (
 )
 
 type ActivityPubObject struct {
-	Id      string               `json:"id"`
-	Url     string               `json:"url"`
-	Name    string               `json:"name"`
-	Content string               `json:"content"`
-	Replies []*ActivityPubObject `json:"replies"`
+	Id        string               `json:"id"`
+	Name      string               `json:"name"`
+	Content   string               `json:"content"`
+	InReplyTo string               `json:"in_reply_to"`
+	Replies   []*ActivityPubObject `json:"replies"`
+	HtmlUri   string               `json:"html_uri"`
+	UriName   string               `json:"uri_name"`
 }
 
 func convertApObjects(from []*activitypub.Object) ([]*ActivityPubObject, error) {
@@ -41,11 +43,31 @@ func convertApObjects(from []*activitypub.Object) ([]*ActivityPubObject, error) 
 }
 
 func convertApObject(from *activitypub.Object) (*ActivityPubObject, error) {
+
+	inReplyTo := ""
+
+	if from.InReplyTo != nil {
+		inReplyTo = string(from.InReplyTo.(activitypub.IRI))
+	}
+
+	htmlUri := ""
+
+	url, err := activitypub.ToLink(from.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	if url.MediaType == "text/html" {
+		htmlUri = string(url.Href)
+	}
+
 	to := &ActivityPubObject{
-		Id:      string(from.ID),
-		Name:    string(from.Name.First().Value),
-		Content: string(from.Content.First().Value),
-		Replies: []*ActivityPubObject{},
+		Id:        string(from.ID),
+		HtmlUri:   htmlUri,
+		Name:      string(from.Name.First().Value),
+		Content:   string(from.Content.First().Value),
+		InReplyTo: inReplyTo,
+		Replies:   []*ActivityPubObject{},
 	}
 
 	if from.Replies != nil {
@@ -310,21 +332,17 @@ func sendActivity(httpClient *http.Client, privKey *rsa.PrivateKey, pubKeyId str
 	return nil
 }
 
-func getRootEntries(entriesDir string) ([]*activitypub.Object, error) {
-	allEntries, err := getAllEntries(entriesDir)
-	if err != nil {
-		return nil, err
-	}
+func filterRootEntries(entries []*activitypub.Object) []*activitypub.Object {
 
 	rootEntries := []*activitypub.Object{}
 
-	for _, entry := range allEntries {
+	for _, entry := range entries {
 		if entry.InReplyTo == nil {
 			rootEntries = append(rootEntries, entry)
 		}
 	}
 
-	return rootEntries, nil
+	return rootEntries
 }
 
 func getAllEntries(entriesDir string) ([]*activitypub.Object, error) {

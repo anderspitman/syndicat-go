@@ -1,15 +1,20 @@
 {{> templates/header.html}}
 
-<main class='h-entry content'>
+<main class='content'>
 
-  {{#Entry.ParentUri}}
-  <p>
-    This entry is in response to <a class='u-in-reply-to' href='{{Entry.ParentUri}}'>{{Entry.ParentUri}}</a>
-  </p>
-  {{/Entry.ParentUri}}
+  {{> templates/navbar.html}}
 
-  <div class='e-content'>
-    {{{ContentHtml}}}
+  <div class='h-entry'>
+
+    {{#Entry.InReplyTo}}
+    <p>
+      This entry is in response to <a class='u-in-reply-to' href='{{Entry.InReplyTo}}'>{{Entry.InReplyTo}}</a>
+    </p>
+    {{/Entry.InReplyTo}}
+
+    <div class='e-content'>
+      {{{ContentHtml}}}
+    </div>
   </div>
 
 </main>
