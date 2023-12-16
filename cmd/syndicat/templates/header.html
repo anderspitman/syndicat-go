@@ -1,20 +1,21 @@
 <!doctype html>
-
 <html>
-  <head>
-    <style>
-      html {
-        font-family: Arial;
-      }
 
-      .entry {
-        border: 1px solid black;
-        border-radius: 5px;
-        padding: 10px;
-        margin: 10px;
-        max-width: 640px;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Tree view</h1>
+<head>
+
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  
+  <title>{{Entry.Title}}</title>
+
+  <link rel="alternate" type="application/atom+xml" href="/feed.xml">
+  <link rel="alternate" type="application/json" href="/feed.json">
+
+  <link rel="icon" href="/logo.png">
+
+  <style>
+  {{> styles.css}}
+  </style>
+</head>
+
+<body>

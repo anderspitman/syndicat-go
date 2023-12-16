@@ -1,0 +1,19 @@
+{{> header.html}}
+
+<div class='content'>
+
+  {{> navbar.html}}
+
+  <h1>Categories</h1>
+  
+  <ul>
+    {{#Entries}}
+    <li>
+      <a href='{{Id}}'>{{Name}}</a>
+    </li>
+    {{/Entries}}
+  </ul>
+
+</div>
+
+{{>footer.html}}

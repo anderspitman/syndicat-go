@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/go-ap/activitypub"
@@ -18,14 +20,31 @@ import (
 
 type ActivityPubObject struct {
 	Id      string               `json:"id"`
+	Url     string               `json:"url"`
+	Name    string               `json:"name"`
 	Content string               `json:"content"`
 	Replies []*ActivityPubObject `json:"replies"`
+}
+
+func convertApObjects(from []*activitypub.Object) ([]*ActivityPubObject, error) {
+	to := []*ActivityPubObject{}
+	for _, fromObj := range from {
+		toObj, err := convertApObject(fromObj)
+		if err != nil {
+			return nil, err
+		}
+
+		to = append(to, toObj)
+	}
+
+	return to, nil
 }
 
 func convertApObject(from *activitypub.Object) (*ActivityPubObject, error) {
 	to := &ActivityPubObject{
 		Id:      string(from.ID),
-		Content: string(from.Content[0].Value),
+		Name:    string(from.Name.First().Value),
+		Content: string(from.Content.First().Value),
 		Replies: []*ActivityPubObject{},
 	}
 
@@ -289,4 +308,69 @@ func sendActivity(httpClient *http.Client, privKey *rsa.PrivateKey, pubKeyId str
 	fmt.Println(resp.StatusCode)
 
 	return nil
+}
+
+func getRootEntries(entriesDir string) ([]*activitypub.Object, error) {
+	allEntries, err := getAllEntries(entriesDir)
+	if err != nil {
+		return nil, err
+	}
+
+	rootEntries := []*activitypub.Object{}
+
+	for _, entry := range allEntries {
+		if entry.InReplyTo == nil {
+			rootEntries = append(rootEntries, entry)
+		}
+	}
+
+	return rootEntries, nil
+}
+
+func getAllEntries(entriesDir string) ([]*activitypub.Object, error) {
+
+	dirItems, err := os.ReadDir(entriesDir)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := []*activitypub.Object{}
+
+	for _, item := range dirItems {
+
+		entryIdStr := item.Name()
+
+		_, err := strconv.Atoi(entryIdStr)
+		if err != nil {
+			continue
+		}
+
+		entryDir := filepath.Join(entriesDir, entryIdStr)
+		entryTextPath := filepath.Join(entryDir, "activity.jsonld")
+
+		activityBytes, err := os.ReadFile(entryTextPath)
+		if err != nil {
+			return nil, err
+		}
+
+		var activityItem *activitypub.Activity
+		err = json.Unmarshal(activityBytes, &activityItem)
+		if err != nil {
+			return nil, err
+		}
+
+		activity, err := activitypub.ToActivity(activityItem)
+		if err != nil {
+			return nil, err
+		}
+
+		entry, err := activitypub.ToObject(activity.Object)
+		if err != nil {
+			return nil, err
+		}
+
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
 }

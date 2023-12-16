@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/anderspitman/treemess-go"
 	"github.com/cbroglie/mustache"
 	"github.com/gemdrive/gemdrive-go"
@@ -63,7 +62,8 @@ func NewServer(conf ServerConfig) *Server {
 	fsDir := "files"
 	sourceDir := fsDir
 	serveDir := fsDir
-	userServeDir := filepath.Join(serveDir, rootUri)
+	userSourceDir := filepath.Join(serveDir, rootUri)
+	userServeDir := userSourceDir
 
 	authConfig := obligator.ServerConfig{
 		RootUri: "https://" + authUri,
@@ -134,12 +134,19 @@ func NewServer(conf ServerConfig) *Server {
 		return nil
 	})
 
-	treeAp, err := getTree(apClient, "https://social.jvns.ca/@b0rk/111535257038802048", 0)
+	rootEntries, err := getRootEntries(userSourceDir)
 	check(err)
 
-	tree, err := convertApObject(treeAp)
+	entries, err := convertApObjects(rootEntries)
 	check(err)
 
+	//treeAp, err := getTree(apClient, "https://social.jvns.ca/@b0rk/111535257038802048", 0)
+	//check(err)
+
+	//tree, err := convertApObject(treeAp)
+	//check(err)
+
+	// TODO: I think this needs to be moved into the render function
 	if conf.TemplatesDir != "" {
 
 		dirFsTmp := os.DirFS(conf.TemplatesDir)
@@ -157,20 +164,19 @@ func NewServer(conf ServerConfig) *Server {
 			check(err)
 
 			if d.Name() == "index.html" {
-				srcPath := filepath.Join(conf.TemplatesDir, path)
+				srcPath := filepath.Join(path)
 				outPath := filepath.Join(userServeDir, path)
 
-				// TODO: change to dirFs.ReadFile
-				tmplBytes, err := os.ReadFile(srcPath)
+				tmplBytes, err := dirFs.ReadFile(srcPath)
 				check(err)
 
-				//templateData := struct {
-				//	Tree *ActivityPubObject
-				//}{
-				//	Tree: tree,
-				//}
+				templateData := struct {
+					Entries []*ActivityPubObject
+				}{
+					Entries: entries,
+				}
 
-				tmplText, err := mustache.RenderPartials(string(tmplBytes), partialProvider, tree)
+				tmplText, err := mustache.RenderPartials(string(tmplBytes), partialProvider, templateData)
 				check(err)
 
 				err = os.MkdirAll(filepath.Dir(outPath), 0755)
@@ -598,35 +604,4 @@ func renderTemplate(tmplPath string, templateData interface{}, partialProvider *
 	}
 
 	return tmplText, nil
-}
-
-func printJson(data interface{}) {
-	d, _ := json.MarshalIndent(data, "", "  ")
-	//fmt.Println(string(d))
-	err := quick.Highlight(os.Stdout, string(d)+"\n", "json", "terminal256", "monokai")
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-}
-
-func printJsonLd(data interface{}) {
-	d, _ := jsonld.Marshal(data)
-	fmt.Println(string(d))
-}
-
-func getHost(r *http.Request) string {
-	// TODO: check to make sure we're behind a proxy before
-	// trusting XFH header
-	host := r.Header.Get("X-Forwarded-Host")
-	if host == "" {
-		host = r.Host
-	}
-
-	return host
-}
-
-func check(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
 }

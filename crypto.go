@@ -32,7 +32,7 @@ func SaveRSAKey(keyPath string, privKey *rsa.PrivateKey) error {
 		Bytes: x509.MarshalPKCS1PrivateKey(privKey),
 	})
 
-	err := os.WriteFile(keyPath, privKeyPem, 0644)
+	err := ensureDirWriteFile(keyPath, privKeyPem)
 	if err != nil {
 		return err
 	}

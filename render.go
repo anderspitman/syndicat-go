@@ -132,7 +132,7 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 			return err
 		}
 
-		contentHtml := string(entry.Content[0].Value)
+		contentHtml := string(entry.Content.First().Value)
 
 		tmplData := struct {
 			Entry       *activitypub.Object
@@ -376,31 +376,6 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 		return err
 	}
 
-	blogTmplData := struct {
-		Entries  []*feeds.Item
-		LoggedIn bool
-	}{
-		Entries:  feedItems,
-		LoggedIn: true,
-	}
-
-	blogHtml, err := renderTemplate("templates/blog.html", blogTmplData, partialProvider)
-	if err != nil {
-		return err
-	}
-
-	blogDir := filepath.Join(serveDir, "blog")
-
-	err = os.MkdirAll(blogDir, 0755)
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(filepath.Join(blogDir, "index.html"), []byte(blogHtml), 0644)
-	if err != nil {
-		return err
-	}
-
 	editorTmplData := struct {
 		Title    string
 		LoggedIn bool
@@ -416,12 +391,32 @@ func renderUser(rootUri, sourceDir, serveDir string, partialProvider *PartialPro
 
 	editorDir := filepath.Join(serveDir, "entry-editor")
 
-	err = os.MkdirAll(editorDir, 0755)
+	err = ensureDirWriteFile(filepath.Join(editorDir, "index.html"), []byte(editorTmplHtml))
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(filepath.Join(editorDir, "index.html"), []byte(editorTmplHtml), 0644)
+	return nil
+}
+
+func renderBlog(feedItems []*feeds.Item, serveDir string, partialProvider *PartialProvider) error {
+
+	blogTmplData := struct {
+		Entries  []*feeds.Item
+		LoggedIn bool
+	}{
+		Entries:  feedItems,
+		LoggedIn: true,
+	}
+
+	blogHtml, err := renderTemplate("templates/blog.html", blogTmplData, partialProvider)
+	if err != nil {
+		return err
+	}
+
+	blogDir := filepath.Join(serveDir, "blog")
+
+	err = ensureDirWriteFile(filepath.Join(blogDir, "index.html"), []byte(blogHtml))
 	if err != nil {
 		return err
 	}
