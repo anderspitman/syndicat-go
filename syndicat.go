@@ -26,6 +26,7 @@ import (
 type ServerConfig struct {
 	RootUri      string
 	TemplatesDir string
+	Port         int
 }
 
 type Server struct{}
@@ -44,7 +45,7 @@ func NewServer(conf ServerConfig) *Server {
 	//userServeDir := userSourceDir
 
 	authConfig := obligator.ServerConfig{
-		RootUri: "https://" + authUri,
+		//RootUri: "https://" + authUri,
 	}
 
 	authServer := obligator.NewServer(authConfig)
@@ -545,13 +546,13 @@ func NewServer(conf ServerConfig) *Server {
 			return
 		}
 
-		err = sendActivity(httpClient, privKey, pubKeyId, activity, "https://mastodon.social/inbox")
-		if err != nil {
-			fmt.Println(err.Error())
-			w.WriteHeader(500)
-			io.WriteString(w, err.Error())
-			return
-		}
+		//err = sendActivity(httpClient, privKey, pubKeyId, activity, "https://mastodon.social/inbox")
+		//if err != nil {
+		//	fmt.Println(err.Error())
+		//	w.WriteHeader(500)
+		//	io.WriteString(w, err.Error())
+		//	return
+		//}
 
 		entryUriPath := fmt.Sprintf("/%d/", entryId)
 		http.Redirect(w, r, entryUriPath, http.StatusSeeOther)
@@ -563,7 +564,11 @@ func NewServer(conf ServerConfig) *Server {
 		os.Exit(1)
 	}
 
-	http.ListenAndServe(":9005", nil)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", conf.Port), nil)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
 
 	s := &Server{}
 	return s
