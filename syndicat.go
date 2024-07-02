@@ -44,6 +44,13 @@ func NewServer(conf ServerConfig) *Server {
 	//userSourceDir := filepath.Join(serveDir, rootUri)
 	//userServeDir := userSourceDir
 
+	db, err := NewDatabase("entree_db.sqlite")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	printJson(db)
+
 	authConfig := obligator.ServerConfig{
 		//RootUri: "https://" + authUri,
 	}

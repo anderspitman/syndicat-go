@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anderspitman/syndicat-go"
 	"github.com/go-ap/activitypub"
 	"github.com/go-ap/jsonld"
 	"github.com/yuin/goldmark"
-	//"github.com/anderspitman/syndicat-go"
 )
 
 type LegacyEntry struct {
@@ -41,6 +41,12 @@ func main() {
 	srcDir := *srcDirArg
 	dstDir := *dstDirArg
 	//author := *authorArg
+
+	db, err := syndicat.NewDatabase("entree_db.sqlite")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
 
 	dirItems, err := os.ReadDir(srcDir)
 	if err != nil {
@@ -155,16 +161,21 @@ func main() {
 			Tag: activitypub.ItemCollection{},
 		}
 
-		//entry := &syndicat.Entry{
-		//	Title:         legacyEntry.Title,
-		//	Author:        author,
-		//	PublishedTime: timestamp,
-		//	ModifiedTime:  timestamp,
-		//	Content:       string(contentBytes),
-		//	VanityPath:    legacyEntry.UrlName,
-		//	Tags:          []string{},
-		//	ChildrenUris:  []string{},
-		//}
+		dbEntry := &syndicat.Entry{
+			Id:            entryId,
+			Title:         legacyEntry.Title,
+			Author:        host,
+			PublishedTime: timestamp,
+			ModifiedTime:  timestamp,
+			Format:        legacyEntry.Format,
+			Content:       string(contentBytes),
+			//VanityPath:    legacyEntry.UrlName,
+			Tags: legacyEntry.Tags,
+			//ChildrenUris:  []string{},
+		}
+
+		err = db.AddEntry(dbEntry)
+		exitOnErr(err)
 
 		//switch legacyEntry.Format {
 		//case "github-flavored-markdown":
